@@ -191,3 +191,59 @@ dialog form { display: grid; grid-template-columns: 1fr; gap: 18px; }
   .wiki-heading, .agent-prompt-heading { display: grid; }.wiki-url, .agent-prompt-heading .button { width: 100%; }.api-wiki { margin-top: 42px; padding-top: 34px; }
   .log-filters { grid-template-columns: 1fr; }.log-filter-actions { grid-column: auto; }.log-filter-actions .button { flex: 1; }.log-toolbar { align-items: flex-start; flex-direction: column; }
 }
+
+:root[data-theme="light"] { color: #1c2923; background: #f2f5f1; }
+:root[data-theme="light"] body { background: #f2f5f1; }
+:root[data-theme="light"] .sidebar { background: #e7eee8; border-color: #cbd8ce; }
+:root[data-theme="light"] .brand { color: #17251e; }
+:root[data-theme="light"] .workspace-switcher, :root[data-theme="light"] .sidebar-guide { color: #405248; background: #f5f8f5; border-color: #cbd8ce; }
+:root[data-theme="light"] .workspace-switcher small, :root[data-theme="light"] .sidebar-guide p { color: #6d7d72; }
+:root[data-theme="light"] .side-link { color: #607168; }
+:root[data-theme="light"] .side-link:hover { color: #263a2d; background: #dce8df; }
+:root[data-theme="light"] .side-link.active { color: #203522; background: #d5e6d0; border-color: #b8d1b0; }
+:root[data-theme="light"] .side-link b { color: #477129; background: #e0efd9; }
+:root[data-theme="light"] .nav-label, :root[data-theme="light"] .sidebar-foot { color: #7c8e82; }
+:root[data-theme="light"] .content-frame { background: linear-gradient(135deg, #f2f5f1 0%, #edf3ed 52%, #f2f5f1 100%); }
+:root[data-theme="light"] .topbar, :root[data-theme="light"] .section-nav { border-color: #d5dfd7; }
+:root[data-theme="light"] .topbar-context { color: #75847b; }
+:root[data-theme="light"] .topbar-context strong, :root[data-theme="light"] .section-link.active, :root[data-theme="light"] .section-link:hover { color: #304338; }
+:root[data-theme="light"] .server-state { color: #5d7064; }
+:root[data-theme="light"] .server-state i { box-shadow: 0 0 0 3px #cfe3c9; }
+:root[data-theme="light"] .section-link { color: #78877e; }
+:root[data-theme="light"] h1 { color: #1e2d25; }
+:root[data-theme="light"] h2 { color: #2b3d32; }
+:root[data-theme="light"] .hero-copy, :root[data-theme="light"] .panel-copy, :root[data-theme="light"] .message-help > p:not(.eyebrow) { color: #66776c; }
+:root[data-theme="light"] .metric-card, :root[data-theme="light"] .panel, :root[data-theme="light"] .wiki-overview article { background: #ffffff; border-color: #d4dfd6; }
+:root[data-theme="light"] .metric-card p, :root[data-theme="light"] .account-phone { color: #718178; }
+:root[data-theme="light"] .metric-card strong, :root[data-theme="light"] .account-name, :root[data-theme="light"] .empty-state strong, :root[data-theme="light"] .wiki-overview strong { color: #26382c; }
+:root[data-theme="light"] .metric-card small { color: #829187; }
+:root[data-theme="light"] .button.secondary { color: #41603d; background: #e4f0e0; border-color: #bdd4b8; }
+:root[data-theme="light"] .button.secondary:hover { background: #d7e9d2; }
+:root[data-theme="light"] .account-card, :root[data-theme="light"] .empty-state, :root[data-theme="light"] .log-entry, :root[data-theme="light"] .link-method { background: #f7faf7; border-color: #d3dfd5; }
+:root[data-theme="light"] .account-status, :root[data-theme="light"] .form-footer { color: #607168; }
+:root[data-theme="light"] .text-button { color: #4d812d; }
+:root[data-theme="light"] .empty-state p, :root[data-theme="light"] .hint { color: #718077; }
+:root[data-theme="light"] .empty-icon { color: #4e792c; background: #e3f0de; }
+:root[data-theme="light"] .message-help-icon { color: #26718b; background: #dff1f6; }
+:root[data-theme="light"] .hint { border-color: #d3dfd7; }
+:root[data-theme="light"] label { color: #52655a; }
+:root[data-theme="light"] input, :root[data-theme="light"] select, :root[data-theme="light"] textarea { color: #273a2e; background: #ffffff; border-color: #c7d5ca; }
+:root[data-theme="light"] input::placeholder, :root[data-theme="light"] textarea::placeholder { color: #91a098; }
+:root[data-theme="light"] .wiki-url { color: #47702e; background: #e6f1e2; border-color: #bfd6b8; }
+:root[data-theme="light"] .wiki-route, :root[data-theme="light"] .code-tabs, :root[data-theme="light"] .code-example { background: #f7faf7; border-color: #d1ddd4; }
+:root[data-theme="light"] .wiki-route > div:first-child > code, :root[data-theme="light"] .code-tab.active { color: #35543b; }
+:root[data-theme="light"] .wiki-overview p, :root[data-theme="light"] .wiki-route > p, :root[data-theme="light"] .api-example { color: #6d7d73; }
+:root[data-theme="light"] .agent-prompt { background: #e8f0e9; border-color: #c7d8ca; }
+:root[data-theme="light"] dialog { color: #293b30; background: #ffffff; border-color: #cbd8ce; box-shadow: 0 28px 80px #29402a33; }
+:root[data-theme="light"] dialog::backdrop { background: #24352a66; }
+:root[data-theme="light"] .icon-button { color: #617268; border-color: #cbd8ce; }
+:root[data-theme="light"] .icon-button:hover { color: #26382c; background: #e7efe8; }
+:root[data-theme="light"] .dialog-hint { color: #5e7064; background: #edf5ee; border-color: #d0dfd3; }
+:root[data-theme="light"] .button.ghost { color: #5b6e62; border-color: #cbd8ce; }
+:root[data-theme="light"] .qr-content p, :root[data-theme="light"] .logs-empty { color: #6c7e72; }
+:root[data-theme="light"] .link-method { color: #304638; }
+:root[data-theme="light"] .link-method:hover { background: #edf6eb; }
+:root[data-theme="light"] .link-method small, :root[data-theme="light"] .log-entry p:first-child { color: #74857a; }
+:root[data-theme="light"] .pairing-code, :root[data-theme="light"] .secret-field { color: #47702e; background: #f1f7ef; border-color: #bfd6b8; }
+:root[data-theme="light"] .log-entry p:last-child { color: #304238; }
+:root[data-theme="light"] #toast { color: #eef8ee; background: #3f6445; border-color: #63836a; }

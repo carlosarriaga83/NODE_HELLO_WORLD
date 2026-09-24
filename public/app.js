@@ -13,6 +13,27 @@ let selectedAccountId = null;
 let selectedLinkAccountId = null;
 let currentApiKey = null;
 let currentLogAccessToken = null;
+const themeToggle = document.querySelector("#theme-toggle");
+
+function applyTheme(theme) {
+  const isLight = theme === "light";
+  document.documentElement.dataset.theme = isLight ? "light" : "dark";
+  themeToggle.innerHTML = `<i data-lucide="${isLight ? "moon" : "sun"}"></i>`;
+  themeToggle.title = isLight ? "Cambiar a modo dark" : "Cambiar a modo light";
+  themeToggle.setAttribute("aria-label", themeToggle.title);
+  refreshIcons();
+}
+
+function loadTheme() {
+  const savedTheme = localStorage.getItem("wa-control-theme");
+  applyTheme(savedTheme === "light" ? "light" : "dark");
+}
+
+themeToggle.addEventListener("click", () => {
+  const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  localStorage.setItem("wa-control-theme", nextTheme);
+  applyTheme(nextTheme);
+});
 
 function refreshIcons() {
   window.lucide?.createIcons();
@@ -335,4 +356,5 @@ loadAccounts();
 setInterval(loadAccounts, 10000);
 window.addEventListener("hashchange", activateView);
 activateView();
+loadTheme();
 refreshIcons();

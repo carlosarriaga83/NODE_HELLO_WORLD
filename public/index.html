@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=7">
+    <link rel="stylesheet" href="styles.css?v=8">
   </head>
   <body>
     <div class="app-shell">
@@ -26,7 +26,7 @@
         <p class="sidebar-foot"><span></span> Servicio operativo</p>
       </aside>
       <div class="content-frame">
-        <header class="topbar"><div class="topbar-context"><span>Panel de control</span><i data-lucide="chevron-right"></i><strong>Resumen</strong></div><div class="topbar-actions"><span class="server-state"><i></i> API activa</span><button class="icon-button top-icon" type="button" title="Las cuentas se actualizan automaticamente"><i data-lucide="circle-help"></i></button><span class="user-avatar" title="Administrador">CA</span></div></header>
+        <header class="topbar"><div class="topbar-context"><span>Panel de control</span><i data-lucide="chevron-right"></i><strong>Resumen</strong></div><div class="topbar-actions"><span class="server-state"><i></i> API activa</span><button class="icon-button top-icon" type="button" id="theme-toggle" title="Cambiar a modo claro" aria-label="Cambiar a modo claro"><i data-lucide="sun"></i></button><button class="icon-button top-icon" type="button" title="Las cuentas se actualizan automaticamente"><i data-lucide="circle-help"></i></button><span class="user-avatar" title="Administrador">CA</span></div></header>
         <nav class="section-nav" aria-label="Secciones del panel"><a class="section-link active" href="#resumen" data-view-link="resumen">Vista general</a><a class="section-link" href="#cuentas" data-view-link="cuentas">Cuentas</a><a class="section-link" href="#mensajes" data-view-link="mensajes">Mensajes</a><a class="section-link" href="#wiki" data-view-link="wiki">API Wiki</a></nav>
         <main id="app-main" data-active-view="resumen">
           <section id="resumen" class="page-view summary-view" data-view="resumen"><div class="hero"><div><p class="eyebrow"><span></span> OPERACIONES DE WHATSAPP</p><h1>Un solo lugar para<br>todas tus cuentas.</h1><p class="hero-copy">Conecta lineas, consulta su estado y envia mensajes directos sin cambiar de herramienta.</p></div><button class="button primary hero-action" id="add-account-button" type="button"><i data-lucide="plus"></i> Vincular cuenta</button></div>
@@ -193,6 +193,6 @@ Escribe una integracion pequena, sin dependencias innecesarias, usando variables
 
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script src="app.js?v=7"></script>
+    <script src="app.js?v=8"></script>
   </body>
 </html>
