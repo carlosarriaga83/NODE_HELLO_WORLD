@@ -3,16 +3,112 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Aplicacion Node.js desplegada en Hostinger.">
-    <title>Hola Mundo | Node.js</title>
+    <meta name="description" content="Panel de operaciones para cuentas de WhatsApp.">
+    <title>WA Control</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <main>
-      <p class="eyebrow">NODE.JS + HOSTINGER</p>
-      <h1>Hola mundo.</h1>
-      <p class="message">Tu aplicacion Node.js esta en marcha y lista para evolucionar.</p>
-      <p class="status"><span aria-hidden="true"></span> Servidor activo</p>
-    </main>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="WA Control">
+          <span class="brand-mark">W</span>
+          <span>WA Control</span>
+        </a>
+        <nav aria-label="Navegacion principal">
+          <a class="nav-link active" href="#cuentas">Cuentas</a>
+          <a class="nav-link" href="#mensajes">Mensajes</a>
+        </nav>
+        <p class="sidebar-foot">Multi-account console<br><span>v1.0</span></p>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="kicker">OPERACIONES</p>
+            <h1>WhatsApp, bajo control.</h1>
+          </div>
+          <div class="server-state"><span></span> API activa</div>
+        </header>
+
+        <section id="cuentas" class="section-head">
+          <div>
+            <h2>Cuentas conectadas</h2>
+            <p>Vincula y administra cada linea desde un solo lugar.</p>
+          </div>
+          <button class="button primary" id="add-account-button" type="button">Nueva cuenta</button>
+        </section>
+
+        <section class="account-grid" id="accounts" aria-live="polite">
+          <div class="empty-state" id="empty-state">
+            <strong>Aun no hay cuentas.</strong>
+            <p>Agrega una cuenta para vincular WhatsApp mediante codigo QR.</p>
+          </div>
+        </section>
+
+        <section id="mensajes" class="composer">
+          <div class="composer-heading">
+            <p class="kicker">ENVIO DIRECTO</p>
+            <h2>Nuevo mensaje</h2>
+          </div>
+          <form id="message-form">
+            <label>
+              Cuenta emisora
+              <select id="sender" required disabled>
+                <option value="">Selecciona una cuenta conectada</option>
+              </select>
+            </label>
+            <label>
+              Destinatario
+              <input id="recipient" inputmode="tel" placeholder="5215512345678" required>
+            </label>
+            <label class="message-field">
+              Mensaje
+              <textarea id="message" rows="4" placeholder="Escribe tu mensaje aqui" required></textarea>
+            </label>
+            <div class="form-footer">
+              <p>Usa el numero internacional, solo digitos.</p>
+              <button class="button primary" id="send-button" type="submit">Enviar mensaje</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="account-dialog">
+      <form method="dialog" id="account-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="kicker">NUEVA CONEXION</p>
+            <h2>Agrega una cuenta</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Cerrar">x</button>
+        </div>
+        <label>
+          Nombre interno
+          <input id="account-name" maxlength="48" placeholder="Ventas Mexico" required autofocus>
+        </label>
+        <div class="dialog-actions">
+          <button class="button ghost" value="cancel" type="button" id="cancel-account">Cancelar</button>
+          <button class="button primary" value="default" type="submit">Crear y vincular</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="qr-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="kicker">VINCULACION</p>
+          <h2 id="qr-title">Escanea el QR</h2>
+        </div>
+        <button class="icon-button" type="button" id="close-qr" aria-label="Cerrar">x</button>
+      </div>
+      <div class="qr-content">
+        <div class="qr-frame" id="qr-frame"><span>Preparando QR...</span></div>
+        <p id="qr-status">Abre WhatsApp en tu telefono y vincula un dispositivo.</p>
+      </div>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
   </body>
 </html>
