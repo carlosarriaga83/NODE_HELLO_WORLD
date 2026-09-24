@@ -12,6 +12,7 @@ let qrInterval;
 let selectedAccountId = null;
 let selectedLinkAccountId = null;
 let currentApiKey = null;
+let currentLogAccessToken = null;
 
 function refreshIcons() {
   window.lucide?.createIcons();
@@ -45,7 +46,7 @@ function renderAccounts() {
         <span class="account-actions">
           ${account.status === "conectada" ? "" : `<button class="text-button" data-action="link" data-id="${account.id}" type="button">Vincular</button>`}
           <button class="text-button" data-action="api-key" data-id="${account.id}" type="button">API key</button>
-          <button class="text-button" data-action="logs" data-id="${account.id}" type="button">Registro</button>
+          <button class="text-button" data-action="logs" data-id="${account.id}" type="button">Log</button>
           <button class="text-button delete" data-action="delete" data-id="${account.id}" type="button">Eliminar</button>
         </span>
       </div>`;
@@ -119,8 +120,13 @@ async function requestLogCode(accountId) {
   showToast("Codigo enviado a la cuenta de WhatsApp.");
 }
 
-async function showLogs(accountId, accessToken) {
-  const { messages } = await request(`/api/accounts/${accountId}/logs`, { headers: { "X-Log-Access-Token": accessToken } });
+async function loadLogs() {
+  const filters = new URLSearchParams();
+  [["query", "#log-query"], ["contact", "#log-contact"], ["direction", "#log-direction"], ["from", "#log-from"], ["to", "#log-to"]].forEach(([key, selector]) => {
+    const value = document.querySelector(selector).value.trim();
+    if (value) filters.set(key, value);
+  });
+  const { messages } = await request(`/api/accounts/${selectedAccountId}/logs?${filters}`, { headers: { "X-Log-Access-Token": currentLogAccessToken } });
   const container = document.querySelector("#message-logs");
   container.replaceChildren();
   if (!messages.length) {
@@ -136,8 +142,24 @@ async function showLogs(accountId, accessToken) {
     item.append(meta, text);
     container.append(item);
   });
-  document.querySelector("#logs-title").textContent = `Mensajes: ${accountName(accountId)}`;
+  document.querySelector("#log-results-count").textContent = `${messages.length} ${messages.length === 1 ? "mensaje" : "mensajes"}`;
+}
+
+async function showLogs(accountId, accessToken) {
+  selectedAccountId = accountId;
+  currentLogAccessToken = accessToken;
+  document.querySelector("#log-filters").reset();
+  document.querySelector("#logs-title").textContent = `Log: ${accountName(accountId)}`;
   document.querySelector("#logs-dialog").showModal();
+  await loadLogs();
+}
+
+async function requestApiKeyCode(accountId) {
+  await request(`/api/accounts/${accountId}/api-key-access`, { method: "POST" });
+  document.querySelector("#api-key-request-step").hidden = true;
+  document.querySelector("#api-key-code-form").hidden = false;
+  document.querySelector("#api-key-code").focus();
+  showToast("Codigo enviado a la cuenta de WhatsApp.");
 }
 
 function showAccountDialog() {
@@ -179,11 +201,11 @@ accountForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.querySelector("#account-name").value;
   try {
-    const { account, apiKey } = await request("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    const { account } = await request("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
     accountForm.reset();
     accountDialog.close();
     await loadAccounts();
-    showApiKey(account.id, apiKey);
+    openLinkDialog(account.id);
   } catch (error) { showToast(error.message); }
 });
 
@@ -193,12 +215,16 @@ accountsElement.addEventListener("click", async (event) => {
   if (button.dataset.action === "link") {
     openLinkDialog(button.dataset.id);
   }
-  if (button.dataset.action === "api-key" && confirm("Esto invalidara la API key anterior. Continuar?")) {
-    try { const { apiKey } = await request(`/api/accounts/${button.dataset.id}/api-key`, { method: "POST" }); showApiKey(button.dataset.id, apiKey); await loadAccounts(); } catch (error) { showToast(error.message); }
+  if (button.dataset.action === "api-key") {
+    selectedAccountId = button.dataset.id;
+    document.querySelector("#api-key-access-title").textContent = `API key: ${accountName(selectedAccountId)}`;
+    document.querySelector("#api-key-request-step").hidden = false;
+    document.querySelector("#api-key-code-form").hidden = true;
+    document.querySelector("#api-key-access-dialog").showModal();
   }
   if (button.dataset.action === "logs") {
     selectedAccountId = button.dataset.id;
-    document.querySelector("#log-access-title").textContent = `Ver mensajes: ${accountName(selectedAccountId)}`;
+    document.querySelector("#log-access-title").textContent = `Abrir Log: ${accountName(selectedAccountId)}`;
     document.querySelector("#log-request-step").hidden = false;
     document.querySelector("#log-code-form").hidden = true;
     document.querySelector("#log-access-dialog").showModal();
@@ -218,6 +244,20 @@ document.querySelector("#pairing-code-form").addEventListener("submit", async (e
 });
 document.querySelector("#new-pairing-code").addEventListener("click", async () => {
   try { await requestPairingCode(); } catch (error) { showToast(error.message); }
+});
+
+document.querySelector("#request-api-key-code").addEventListener("click", async () => {
+  try { await requestApiKeyCode(selectedAccountId); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#api-key-code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const { apiKey } = await request(`/api/accounts/${selectedAccountId}/api-key-access`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: document.querySelector("#api-key-code").value }) });
+    document.querySelector("#api-key-code-form").reset();
+    document.querySelector("#api-key-access-dialog").close();
+    showApiKey(selectedAccountId, apiKey);
+    await loadAccounts();
+  } catch (error) { showToast(error.message); }
 });
 
 document.querySelectorAll(".code-tab").forEach((tab) => {
@@ -263,6 +303,21 @@ document.querySelector("#log-code-form").addEventListener("submit", async (event
     await showLogs(selectedAccountId, accessToken);
   } catch (error) { showToast(error.message); }
 });
+document.querySelector("#log-filters").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try { await loadLogs(); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#clear-log-filters").addEventListener("click", async () => {
+  document.querySelector("#log-filters").reset();
+  try { await loadLogs(); } catch (error) { showToast(error.message); }
+});
+
+function activateView() {
+  const view = ["resumen", "cuentas", "mensajes", "wiki"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "resumen";
+  document.querySelector("#app-main").dataset.activeView = view;
+  document.querySelectorAll("[data-view-link]").forEach((link) => link.classList.toggle("active", link.dataset.viewLink === view));
+  document.querySelector(".topbar-context strong").textContent = ({ resumen: "Resumen", cuentas: "Cuentas", mensajes: "Mensajes", wiki: "API Wiki" })[view];
+}
 
 messageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -278,4 +333,6 @@ messageForm.addEventListener("submit", async (event) => {
 
 loadAccounts();
 setInterval(loadAccounts, 10000);
+window.addEventListener("hashchange", activateView);
+activateView();
 refreshIcons();

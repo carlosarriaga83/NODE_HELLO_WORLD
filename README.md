@@ -22,7 +22,7 @@ npm run dev
 
 1. Pulsa **Nueva cuenta** y asigna un nombre interno.
 2. Pulsa **Vincular** y elige **Escanear QR** o **Vincular con numero**. Para el segundo metodo, indica el numero internacional de la cuenta, abre **Dispositivos vinculados** en WhatsApp, elige vincular con numero e introduce el codigo temporal mostrado por el panel.
-3. Al crearla, copia la API key mostrada: solo se muestra una vez. Puedes rotarla desde la tarjeta de la cuenta.
+3. Una vez vinculada, abre **API key** en la tarjeta de la cuenta, solicita el codigo enviado a ese WhatsApp y verificalo para crear o rotar la clave. La clave solo se muestra una vez.
 4. En WhatsApp, abre **Dispositivos vinculados** y escanea el QR mostrado por el panel.
 5. Una vez conectada, selecciona la cuenta en **Nuevo mensaje**, indica el numero internacional con solo digitos y escribe el mensaje.
 
@@ -41,12 +41,12 @@ Las sesiones de Baileys se guardan en `data/sessions/` y siguen excluidas de Git
 
 ## API REST por cuenta
 
-Cada cuenta tiene una API key independiente. Envia la clave mediante el encabezado `X-API-Key`; no la incluyas en una URL, repositorio ni archivo de codigo.
+Cada cuenta tiene una API key independiente. Crear, actualizar o mostrar una clave requiere verificar un codigo de seis digitos enviado a la cuenta de WhatsApp vinculada. Envia la clave mediante el encabezado `X-API-Key`; no la incluyas en una URL, repositorio ni archivo de codigo.
 
 | Metodo | Ruta | Funcion |
 | --- | --- | --- |
 | `POST` | `/v1/messages` | Envia un mensaje desde la cuenta vinculada a `{ "to": "5215512345678", "text": "Hola" }`. |
-| `GET` | `/v1/messages?limit=50` | Devuelve hasta 100 mensajes del registro cifrado, tras desbloquearlo. |
+| `GET` | `/v1/messages?limit=50` | Devuelve hasta 100 mensajes del Log cifrado, tras desbloquearlo. |
 
 Ejemplo de envio desde Python:
 
@@ -64,11 +64,11 @@ response.raise_for_status()
 print(response.json())
 ```
 
-## Registro cifrado
+## Log cifrado
 
-Los mensajes entrantes y salientes se guardan por cuenta con AES-256-GCM, en MySQL cuando la aplicacion se ejecuta con la configuracion de Hostinger. El dashboard no permite verlos directamente: usa **Registro** en la tarjeta de la cuenta, solicita un codigo y recibelo en esa misma cuenta de WhatsApp. El codigo dura 10 minutos; el token de lectura generado dura 15 minutos.
+Los mensajes entrantes y salientes se guardan por cuenta con AES-256-GCM, en MySQL cuando la aplicacion se ejecuta con la configuracion de Hostinger. El dashboard no permite verlos directamente: usa **Log** en la tarjeta de la cuenta, solicita un codigo y recibelo en esa misma cuenta de WhatsApp. El codigo dura 10 minutos; el token de lectura generado dura 15 minutos. Dentro de Log puedes filtrar por texto, remitente o destino, direccion y rango de fechas.
 
-Para consumir mensajes desde una integracion, primero desbloquea el registro en el dashboard y envia el token temporal junto con la API key:
+Para consumir mensajes desde una integracion, primero desbloquea el Log en el dashboard y envia el token temporal junto con la API key:
 
 ```python
 headers = {
@@ -103,6 +103,6 @@ Crea antes un repositorio vacio en GitHub y sustituye la URL del ejemplo por la 
 4. Ejecuta el build. Hostinger instalara las dependencias declaradas en `package.json` y arrancara la aplicacion.
 5. Protege la URL con el mecanismo de acceso restringido que uses en tu hosting antes de vincular cuentas de WhatsApp.
 
-El servidor usa la variable de entorno `PORT` asignada por Hostinger. En local usa el puerto `3000` de forma predeterminada. Para persistencia administrada, configura `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`; Hostinger puede crearlas de forma segura al configurar la base. La aplicacion crea las tablas `wa_accounts` y `wa_message_logs` al arrancar y, si la base esta vacia, importa las cuentas y registros locales existentes una sola vez.
+El servidor usa la variable de entorno `PORT` asignada por Hostinger. En local usa el puerto `3000` de forma predeterminada. Para persistencia administrada, configura `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`; Hostinger puede crearlas de forma segura al configurar la base. La aplicacion crea las tablas `wa_accounts` y `wa_message_logs` al arrancar y, si la base esta vacia, importa las cuentas y Logs locales existentes una sola vez. Si existe una configuracion MySQL parcial, el servidor se detiene en vez de usar almacenamiento temporal.
 
 Para una clave de cifrado controlada por el servidor, configura `LOG_ENCRYPTION_KEY` con una cadena base64 de 32 bytes. Si no existe, el servidor reutiliza la clave local existente; en una instalacion MySQL nueva deriva una clave estable desde el secreto de base de datos para que los registros sigan siendo legibles entre despliegues. No incluyas ninguna de estas variables en Git.

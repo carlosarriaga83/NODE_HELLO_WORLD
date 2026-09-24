@@ -16,7 +16,9 @@ const accountsFile = path.join(dataDirectory, "accounts.json");
 const connections = new Map();
 const logAccessChallenges = new Map();
 const logAccessTokens = new Map();
-const databaseEnabled = Boolean(process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER && process.env.DB_PASSWORD);
+const apiKeyAccessChallenges = new Map();
+const databaseVariablesPresent = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"].some((key) => process.env[key]);
+const databaseEnabled = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"].every((key) => process.env[key]);
 const database = databaseEnabled
   ? mysql.createPool({
       host: process.env.DB_HOST === "localhost" ? "127.0.0.1" : process.env.DB_HOST,
@@ -85,11 +87,12 @@ async function initializeStorage() {
     CREATE TABLE IF NOT EXISTS wa_accounts (
       id CHAR(36) PRIMARY KEY,
       name VARCHAR(48) NOT NULL,
-      api_key_hash CHAR(64) NOT NULL,
-      api_key_prefix VARCHAR(16) NOT NULL,
+      api_key_hash CHAR(64) NULL,
+      api_key_prefix VARCHAR(16) NULL,
       created_at DATETIME(3) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+  await database.query("ALTER TABLE wa_accounts MODIFY api_key_hash CHAR(64) NULL, MODIFY api_key_prefix VARCHAR(16) NULL");
   await database.query(`
     CREATE TABLE IF NOT EXISTS wa_message_logs (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -208,6 +211,25 @@ async function readMessageLogs(accountId, limit = 100) {
   }
 }
 
+async function findMessageLogs(accountId, filters) {
+  const requestedLimit = Math.min(Math.max(Number.parseInt(filters.limit, 10) || 50, 1), 100);
+  const direction = ["inbound", "outbound"].includes(filters.direction) ? filters.direction : null;
+  const query = String(filters.query || "").trim().toLocaleLowerCase();
+  const contact = String(filters.contact || "").replace(/\D/g, "");
+  const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(filters.from) ? new Date(`${filters.from}T00:00:00.000Z`) : null;
+  const toDate = /^\d{4}-\d{2}-\d{2}$/.test(filters.to) ? new Date(`${filters.to}T23:59:59.999Z`) : null;
+  const messages = await readMessageLogs(accountId, 500);
+  return messages.filter((message) => {
+    const timestamp = new Date(message.timestamp);
+    const counterparty = String(message.from || message.to || "");
+    return (!direction || message.direction === direction)
+      && (!contact || counterparty.includes(contact))
+      && (!query || `${counterparty} ${message.text || ""}`.toLocaleLowerCase().includes(query))
+      && (!fromDate || timestamp >= fromDate)
+      && (!toDate || timestamp <= toDate);
+  }).slice(-requestedLimit);
+}
+
 function extractMessageText(message) {
   return message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || "[Mensaje no textual]";
 }
@@ -232,6 +254,30 @@ function hasLogAccess(accountId, token) {
     return false;
   }
   return true;
+}
+
+async function sendVerificationCode(account, challenges, label) {
+  const connection = connections.get(account.id);
+  if (!connection?.socket || connection.status !== "conectada" || !connection.phone) {
+    const error = new Error("La cuenta debe estar conectada para enviar el codigo de verificacion.");
+    error.statusCode = 409;
+    throw error;
+  }
+  const code = String(randomInt(100000, 1_000_000));
+  await connection.socket.sendMessage(`${connection.phone}@s.whatsapp.net`, { text: `WA Control: tu codigo para ${label} es ${code}. Expira en 10 minutos.` });
+  challenges.set(account.id, { codeHash: hashApiKey(code), expiresAt: Date.now() + 10 * 60_000, attempts: 0 });
+}
+
+function verifyCode(accountId, challenges, code) {
+  const challenge = challenges.get(accountId);
+  if (!challenge || challenge.expiresAt < Date.now() || challenge.attempts >= 5) {
+    challenges.delete(accountId);
+    return false;
+  }
+  challenge.attempts += 1;
+  const valid = timingSafeEqual(Buffer.from(challenge.codeHash), Buffer.from(hashApiKey(code)));
+  if (valid) challenges.delete(accountId);
+  return valid;
 }
 
 function sendJson(response, statusCode, data) {
@@ -371,7 +417,7 @@ function serveStatic(requestUrl, response) {
 
 const server = http.createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
-  const accountMatch = requestUrl.pathname.match(/^\/api\/accounts\/([\w-]+)(?:\/(qr|messages|api-key|log-access|logs|pairing-code))?$/);
+  const accountMatch = requestUrl.pathname.match(/^\/api\/accounts\/([\w-]+)(?:\/(qr|messages|api-key-access|log-access|logs|pairing-code))?$/);
 
   try {
     if (request.method === "GET" && requestUrl.pathname === "/api/accounts") {
@@ -386,12 +432,11 @@ const server = http.createServer(async (request, response) => {
         sendJson(response, 400, { error: "Indica un nombre de cuenta de hasta 48 caracteres." });
         return;
       }
-      const apiKey = createApiKey();
-      const account = { id: randomUUID(), name, apiKeyHash: apiKey.apiKeyHash, apiKeyPrefix: apiKey.apiKeyPrefix, createdAt: new Date().toISOString() };
+      const account = { id: randomUUID(), name, apiKeyHash: null, apiKeyPrefix: null, createdAt: new Date().toISOString() };
       accounts.push(account);
       await persistAccount(account);
       connectAccount(account);
-      sendJson(response, 201, { account: publicAccount(account), apiKey: apiKey.apiKey });
+      sendJson(response, 201, { account: publicAccount(account) });
       return;
     }
 
@@ -426,7 +471,7 @@ const server = http.createServer(async (request, response) => {
           return;
         }
         const limit = Math.min(Math.max(Number.parseInt(requestUrl.searchParams.get("limit"), 10) || 50, 1), 100);
-        sendJson(response, 200, { accountId: account.id, messages: await readMessageLogs(account.id, limit) });
+        sendJson(response, 200, { accountId: account.id, messages: await findMessageLogs(account.id, { ...Object.fromEntries(requestUrl.searchParams), limit }) });
         return;
       }
     }
@@ -466,7 +511,18 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      if (request.method === "POST" && action === "api-key") {
+      if (request.method === "POST" && action === "api-key-access") {
+        await sendVerificationCode(account, apiKeyAccessChallenges, "crear o actualizar tu API key");
+        sendJson(response, 200, { status: "codigo_enviado", expiresIn: 600 });
+        return;
+      }
+
+      if (request.method === "PUT" && action === "api-key-access") {
+        const body = await readBody(request);
+        if (!verifyCode(account.id, apiKeyAccessChallenges, String(body.code || ""))) {
+          sendJson(response, 401, { error: "El codigo expiro o es incorrecto. Solicita uno nuevo." });
+          return;
+        }
         const apiKey = createApiKey();
         account.apiKeyHash = apiKey.apiKeyHash;
         account.apiKeyPrefix = apiKey.apiKeyPrefix;
@@ -476,29 +532,16 @@ const server = http.createServer(async (request, response) => {
       }
 
       if (request.method === "POST" && action === "log-access") {
-        if (!connection?.socket || connection.status !== "conectada" || !connection.phone) {
-          sendJson(response, 409, { error: "La cuenta debe estar conectada para enviar el codigo de acceso." });
-          return;
-        }
-        const code = String(randomInt(100000, 1_000_000));
-        await connection.socket.sendMessage(`${connection.phone}@s.whatsapp.net`, { text: `WA Control: tu codigo para ver el registro cifrado es ${code}. Expira en 10 minutos.` });
-        logAccessChallenges.set(account.id, { codeHash: hashApiKey(code), expiresAt: Date.now() + 10 * 60_000, attempts: 0 });
+        await sendVerificationCode(account, logAccessChallenges, "ver el Log cifrado");
         sendJson(response, 200, { status: "codigo_enviado", expiresIn: 600 });
         return;
       }
 
       if (request.method === "PUT" && action === "log-access") {
         const body = await readBody(request);
-        const challenge = logAccessChallenges.get(account.id);
         const code = String(body.code || "");
-        if (!challenge || challenge.expiresAt < Date.now() || challenge.attempts >= 5) {
-          logAccessChallenges.delete(account.id);
-          sendJson(response, 401, { error: "El codigo expiro o ya no es valido. Solicita uno nuevo." });
-          return;
-        }
-        challenge.attempts += 1;
-        if (!timingSafeEqual(Buffer.from(challenge.codeHash), Buffer.from(hashApiKey(code)))) {
-          sendJson(response, 401, { error: "Codigo incorrecto." });
+        if (!verifyCode(account.id, logAccessChallenges, code)) {
+          sendJson(response, 401, { error: "El codigo expiro o es incorrecto. Solicita uno nuevo." });
           return;
         }
         logAccessChallenges.delete(account.id);
@@ -509,10 +552,10 @@ const server = http.createServer(async (request, response) => {
       if (request.method === "GET" && action === "logs") {
         const accessToken = request.headers["x-log-access-token"];
         if (!hasLogAccess(account.id, accessToken)) {
-          sendJson(response, 403, { error: "Desbloquea el registro con el codigo enviado a WhatsApp." });
+          sendJson(response, 403, { error: "Desbloquea el Log con el codigo enviado a WhatsApp." });
           return;
         }
-        sendJson(response, 200, { messages: await readMessageLogs(account.id) });
+        sendJson(response, 200, { messages: await findMessageLogs(account.id, Object.fromEntries(requestUrl.searchParams)) });
         return;
       }
 
@@ -554,11 +597,14 @@ const server = http.createServer(async (request, response) => {
 
     serveStatic(requestUrl, response);
   } catch (error) {
-    sendJson(response, 500, { error: error instanceof SyntaxError ? "JSON invalido." : error.message || "Error interno." });
+    sendJson(response, error.statusCode || 500, { error: error instanceof SyntaxError ? "JSON invalido." : error.message || "Error interno." });
   }
 });
 
 async function startServer() {
+  if (databaseVariablesPresent && !databaseEnabled) {
+    throw new Error("La configuracion de MySQL esta incompleta; la aplicacion no usara almacenamiento temporal.");
+  }
   await initializeStorage();
   server.listen(port, "0.0.0.0", () => {
     console.log(`Dashboard disponible en http://localhost:${port}${database ? " con MySQL" : " con almacenamiento local"}`);
