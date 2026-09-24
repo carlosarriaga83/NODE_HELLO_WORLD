@@ -220,6 +220,31 @@ document.querySelector("#new-pairing-code").addEventListener("click", async () =
   try { await requestPairingCode(); } catch (error) { showToast(error.message); }
 });
 
+document.querySelectorAll(".code-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".code-tab").forEach((item) => item.classList.toggle("active", item === tab));
+    document.querySelectorAll(".code-example[data-code-example]").forEach((example) => {
+      const active = example.dataset.codeExample === tab.dataset.codeTab;
+      example.hidden = !active;
+      example.classList.toggle("active", active);
+    });
+  });
+});
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copiado al portapapeles.");
+  } catch {
+    showToast("No se pudo copiar el contenido.");
+  }
+}
+
+document.querySelectorAll(".copy-code").forEach((button) => {
+  button.addEventListener("click", () => copyText(document.querySelector(`#${button.dataset.copyTarget}`).textContent));
+});
+document.querySelector("#copy-agent-prompt").addEventListener("click", () => copyText(document.querySelector("#agent-prompt-text").textContent));
+
 document.querySelectorAll("[data-close-dialog]").forEach((button) => {
   button.addEventListener("click", () => document.querySelector(`#${button.dataset.closeDialog}`).close());
 });

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="stylesheet" href="styles.css?v=6">
   </head>
   <body>
     <div class="app-shell">
@@ -20,13 +20,14 @@
           <a class="side-link active" href="#resumen"><i data-lucide="layout-dashboard"></i><span>Resumen</span></a>
           <a class="side-link" href="#cuentas"><i data-lucide="contact-round"></i><span>Cuentas</span><b id="sidebar-account-count">0</b></a>
           <a class="side-link" href="#mensajes"><i data-lucide="send"></i><span>Nuevo mensaje</span></a>
+          <a class="side-link" href="#wiki"><i data-lucide="book-open"></i><span>API Wiki</span></a>
         </nav>
         <div class="sidebar-guide"><span class="guide-icon"><i data-lucide="lightbulb"></i></span><strong>Primera cuenta</strong><p>Crea una cuenta y escanea el QR desde WhatsApp.</p><a href="#cuentas">Ver guia <i data-lucide="arrow-up-right"></i></a></div>
         <p class="sidebar-foot"><span></span> Servicio operativo</p>
       </aside>
       <div class="content-frame">
         <header class="topbar"><div class="topbar-context"><span>Panel de control</span><i data-lucide="chevron-right"></i><strong>Resumen</strong></div><div class="topbar-actions"><span class="server-state"><i></i> API activa</span><button class="icon-button top-icon" type="button" title="Las cuentas se actualizan automaticamente"><i data-lucide="circle-help"></i></button><span class="user-avatar" title="Administrador">CA</span></div></header>
-        <nav class="section-nav" aria-label="Secciones del panel"><a class="section-link active" href="#resumen">Vista general</a><a class="section-link" href="#cuentas">Cuentas</a><a class="section-link" href="#mensajes">Mensajes</a></nav>
+        <nav class="section-nav" aria-label="Secciones del panel"><a class="section-link active" href="#resumen">Vista general</a><a class="section-link" href="#cuentas">Cuentas</a><a class="section-link" href="#mensajes">Mensajes</a><a class="section-link" href="#wiki">API Wiki</a></nav>
         <main>
           <section id="resumen" class="hero"><div><p class="eyebrow"><span></span> OPERACIONES DE WHATSAPP</p><h1>Un solo lugar para<br>todas tus cuentas.</h1><p class="hero-copy">Conecta lineas, consulta su estado y envia mensajes directos sin cambiar de herramienta.</p></div><button class="button primary hero-action" id="add-account-button" type="button"><i data-lucide="plus"></i> Vincular cuenta</button></section>
           <section class="metrics" aria-label="Estado de las cuentas">
@@ -36,6 +37,75 @@
           </section>
           <section id="cuentas" class="panel accounts-panel"><div class="panel-heading"><div><p class="eyebrow"><span></span> TUS CONEXIONES</p><h2>Cuentas de WhatsApp</h2><p class="panel-copy">Cada cuenta tiene su propia sesion y puede administrarse por separado.</p></div><button class="button secondary" id="add-account-button-secondary" type="button"><i data-lucide="plus"></i> Nueva cuenta</button></div><div class="account-grid" id="accounts" aria-live="polite"><div class="empty-state" id="empty-state"><span class="empty-icon"><i data-lucide="qr-code"></i></span><div><strong>Conecta tu primera cuenta</strong><p>Asigna un nombre, abre WhatsApp en tu telefono y escanea el codigo QR.</p><button class="text-action" id="empty-add-account" type="button">Vincular una cuenta <i data-lucide="arrow-right"></i></button></div></div></div></section>
           <section id="mensajes" class="message-layout"><aside class="message-help"><span class="message-help-icon"><i data-lucide="send-horizontal"></i></span><p class="eyebrow"><span></span> ENVIO DIRECTO</p><h2>Envio uno a uno,<br>sin friccion.</h2><p>Elige una cuenta conectada y escribe el numero en formato internacional.</p><div class="hint"><i data-lucide="info"></i><span>No agregues el simbolo <b>+</b>, espacios ni guiones.</span></div></aside><section class="panel composer"><div class="panel-heading compact"><div><h2>Nuevo mensaje</h2><p class="panel-copy">Los envios se realizan desde la cuenta que selecciones.</p></div></div><form id="message-form"><label>Cuenta emisora<select id="sender" required disabled><option value="">Selecciona una cuenta conectada</option></select></label><label>Destinatario<input id="recipient" inputmode="tel" placeholder="5215512345678" required></label><label class="message-field">Mensaje<textarea id="message" rows="5" placeholder="Escribe tu mensaje aqui" required></textarea></label><div class="form-footer"><span><i data-lucide="shield-check"></i> Envio desde una sesion vinculada</span><button class="button primary" id="send-button" type="submit"><i data-lucide="send"></i> Enviar mensaje</button></div></form></section></section>
+          <section id="wiki" class="api-wiki">
+            <div class="wiki-heading"><div><p class="eyebrow"><span></span> DOCUMENTACION PARA DESARROLLO</p><h2>API Wiki</h2><p class="panel-copy">Una API key controla una sola cuenta. Creala o rotala desde la tarjeta de la cuenta y guardala como variable de entorno.</p></div><span class="wiki-url">https://wa.2api2.com</span></div>
+            <div class="wiki-overview"><article><i data-lucide="key-round"></i><div><strong>Autenticacion</strong><p>Incluye la API key en <code>X-API-Key</code>.</p></div></article><article><i data-lucide="send"></i><div><strong>Enviar mensaje</strong><p><code>POST /v1/messages</code> con <code>to</code> y <code>text</code>.</p></div></article><article><i data-lucide="shield-check"></i><div><strong>Leer registro</strong><p>Requiere un token temporal generado desde el dashboard.</p></div></article></div>
+            <div class="wiki-route"><div><span class="method post">POST</span><code>/v1/messages</code></div><p>Envio desde la cuenta vinculada a tu API key. El numero debe incluir codigo de pais y no lleva <code>+</code>.</p></div>
+            <div class="code-tabs" role="tablist" aria-label="Ejemplos por lenguaje"><button class="code-tab active" type="button" data-code-tab="curl" role="tab">cURL</button><button class="code-tab" type="button" data-code-tab="python" role="tab">Python</button><button class="code-tab" type="button" data-code-tab="node" role="tab">Node.js</button><button class="code-tab" type="button" data-code-tab="php" role="tab">PHP</button><button class="code-tab" type="button" data-code-tab="go" role="tab">Go</button></div>
+            <div class="code-example active" data-code-example="curl"><div class="code-head"><span>terminal</span><button class="copy-code" type="button" data-copy-target="example-curl" title="Copiar ejemplo"><i data-lucide="copy"></i></button></div><pre id="example-curl"><code>curl -X POST https://wa.2api2.com/v1/messages \
+  -H "X-API-Key: $WA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"5215512345678","text":"Hola desde mi integracion"}'</code></pre></div>
+            <div class="code-example" data-code-example="python" hidden><div class="code-head"><span>Python + requests</span><button class="copy-code" type="button" data-copy-target="example-python" title="Copiar ejemplo"><i data-lucide="copy"></i></button></div><pre id="example-python"><code>import os
+import requests
+
+response = requests.post(
+    "https://wa.2api2.com/v1/messages",
+    headers={"X-API-Key": os.environ["WA_API_KEY"]},
+    json={"to": "5215512345678", "text": "Hola desde Python"},
+    timeout=20,
+)
+response.raise_for_status()
+print(response.json())</code></pre></div>
+            <div class="code-example" data-code-example="node" hidden><div class="code-head"><span>Node.js 20+</span><button class="copy-code" type="button" data-copy-target="example-node" title="Copiar ejemplo"><i data-lucide="copy"></i></button></div><pre id="example-node"><code>const response = await fetch("https://wa.2api2.com/v1/messages", {
+  method: "POST",
+  headers: {
+    "X-API-Key": process.env.WA_API_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({ to: "5215512345678", text: "Hola desde Node.js" })
+});
+
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());</code></pre></div>
+            <div class="code-example" data-code-example="php" hidden><div class="code-head"><span>PHP + cURL</span><button class="copy-code" type="button" data-copy-target="example-php" title="Copiar ejemplo"><i data-lucide="copy"></i></button></div><pre id="example-php"><code>&lt;?php
+$client = curl_init("https://wa.2api2.com/v1/messages");
+curl_setopt_array($client, [
+    CURLOPT_POST =&gt; true,
+    CURLOPT_HTTPHEADER =&gt; ["X-API-Key: " . getenv("WA_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS =&gt; json_encode(["to" =&gt; "5215512345678", "text" =&gt; "Hola desde PHP"]),
+    CURLOPT_RETURNTRANSFER =&gt; true,
+]);
+echo curl_exec($client);</code></pre></div>
+            <div class="code-example" data-code-example="go" hidden><div class="code-head"><span>Go</span><button class="copy-code" type="button" data-copy-target="example-go" title="Copiar ejemplo"><i data-lucide="copy"></i></button></div><pre id="example-go"><code>body := strings.NewReader(`{"to":"5215512345678","text":"Hola desde Go"}`)
+request, _ := http.NewRequest("POST", "https://wa.2api2.com/v1/messages", body)
+request.Header.Set("X-API-Key", os.Getenv("WA_API_KEY"))
+request.Header.Set("Content-Type", "application/json")
+
+response, err := http.DefaultClient.Do(request)
+if err != nil { log.Fatal(err) }
+defer response.Body.Close()</code></pre></div>
+            <div class="wiki-route read-route"><div><span class="method get">GET</span><code>/v1/messages?limit=50</code></div><p>Antes de leer mensajes, usa <b>Registro</b> en la cuenta desde el dashboard. Tras verificar el codigo recibido por WhatsApp, envia el token temporal en <code>X-Log-Access-Token</code>.</p><div class="code-example compact-code"><div class="code-head"><span>lectura protegida</span><button class="copy-code" type="button" data-copy-target="example-logs" title="Copiar ejemplo"><i data-lucide="copy"></i></button></div><pre id="example-logs"><code>requests.get(
+    "https://wa.2api2.com/v1/messages?limit=50",
+    headers={
+        "X-API-Key": os.environ["WA_API_KEY"],
+        "X-Log-Access-Token": os.environ["WA_LOG_ACCESS_TOKEN"],
+    },
+    timeout=20,
+)</code></pre></div></div>
+            <div class="agent-prompt"><div class="agent-prompt-heading"><div><p class="kicker">PROMPT PARA AGENTE EXTERNO</p><h3>Integra WA Control</h3></div><button class="button secondary" id="copy-agent-prompt" type="button"><i data-lucide="copy"></i> Copiar prompt</button></div><pre id="agent-prompt-text">Integra la API REST de WA Control para enviar mensajes de WhatsApp autorizados.
+
+Base URL: https://wa.2api2.com
+Autenticacion: lee WA_API_KEY desde variables de entorno y enviala como encabezado X-API-Key. Nunca pongas la clave en codigo, URLs, logs ni respuestas al usuario.
+
+Enviar: POST /v1/messages con Content-Type: application/json y cuerpo {"to":"NUMERO_INTERNACIONAL_SIN_MAS","text":"MENSAJE"}. El numero debe tener de 8 a 15 digitos, incluir codigo de pais y no usar +, espacios ni guiones.
+
+Respuestas: 201 indica envio correcto; 400 datos invalidos; 401 clave ausente o invalida; 409 cuenta de WhatsApp no conectada. Maneja errores y define timeout de 20 segundos.
+
+Registros: GET /v1/messages?limit=1..100 requiere tanto X-API-Key como X-Log-Access-Token. El token se obtiene solo despues de desbloquear Registro dentro del dashboard con el codigo enviado a WhatsApp y expira en 15 minutos. No intentes omitir este paso.
+
+Escribe una integracion pequena, sin dependencias innecesarias, usando variables de entorno y mostrando errores accionables.</pre></div>
+          </section>
         </main>
       </div>
     </div>
@@ -115,6 +185,6 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
   </body>
 </html>
