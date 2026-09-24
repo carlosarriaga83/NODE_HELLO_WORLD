@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
   </head>
   <body>
     <div class="app-shell">
@@ -72,8 +72,26 @@
       </div>
     </dialog>
 
+    <dialog id="api-key-dialog">
+      <div class="dialog-heading"><div><p class="kicker">ACCESO PROGRAMATICO</p><h2 id="api-key-title">API key</h2></div><button class="icon-button" type="button" data-close-dialog="api-key-dialog" aria-label="Cerrar"><i data-lucide="x"></i></button></div>
+      <p class="dialog-hint"><i data-lucide="triangle-alert"></i> Copia esta clave ahora. Por seguridad no podras verla de nuevo.</p>
+      <div class="secret-field"><code id="api-key-value"></code><button class="icon-button" id="copy-api-key" type="button" title="Copiar API key"><i data-lucide="copy"></i></button></div>
+      <p class="api-example">Usala en tus peticiones con el encabezado <code>X-API-Key</code>.</p>
+    </dialog>
+
+    <dialog id="log-access-dialog">
+      <div class="dialog-heading"><div><p class="kicker">REGISTRO CIFRADO</p><h2 id="log-access-title">Ver mensajes</h2></div><button class="icon-button" type="button" data-close-dialog="log-access-dialog" aria-label="Cerrar"><i data-lucide="x"></i></button></div>
+      <div id="log-request-step"><p class="dialog-hint"><i data-lucide="shield-check"></i> Enviaremos un codigo de seis digitos a esta misma cuenta de WhatsApp.</p><button class="button primary full-width" id="request-log-code" type="button"><i data-lucide="send"></i> Enviar codigo</button></div>
+      <form id="log-code-form" hidden><label>Codigo de verificacion<input id="log-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required></label><p class="api-example">El acceso al registro dura 15 minutos.</p><button class="button primary full-width" type="submit">Desbloquear registro</button></form>
+    </dialog>
+
+    <dialog id="logs-dialog">
+      <div class="dialog-heading"><div><p class="kicker">REGISTRO DESCIFRADO</p><h2 id="logs-title">Mensajes recientes</h2></div><button class="icon-button" type="button" data-close-dialog="logs-dialog" aria-label="Cerrar"><i data-lucide="x"></i></button></div>
+      <div id="message-logs" class="message-logs"></div>
+    </dialog>
+
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>

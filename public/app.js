@@ -8,6 +8,8 @@ const sender = document.querySelector("#sender");
 const toast = document.querySelector("#toast");
 let accounts = [];
 let qrInterval;
+let selectedAccountId = null;
+let currentApiKey = null;
 
 function refreshIcons() {
   window.lucide?.createIcons();
@@ -40,6 +42,8 @@ function renderAccounts() {
         <span class="account-status ${statusClass}">${account.status}</span>
         <span class="account-actions">
           <button class="text-button" data-action="qr" data-id="${account.id}" type="button">${account.hasQr ? "Ver QR" : "Vincular"}</button>
+          <button class="text-button" data-action="api-key" data-id="${account.id}" type="button">API key</button>
+          <button class="text-button" data-action="logs" data-id="${account.id}" type="button">Registro</button>
           <button class="text-button delete" data-action="delete" data-id="${account.id}" type="button">Eliminar</button>
         </span>
       </div>`;
@@ -94,6 +98,46 @@ async function openQr(accountId) {
   qrInterval = setInterval(updateQr, 3000);
 }
 
+function accountName(accountId) {
+  return accounts.find((account) => account.id === accountId)?.name || "Cuenta";
+}
+
+function showApiKey(accountId, apiKey) {
+  currentApiKey = apiKey;
+  document.querySelector("#api-key-title").textContent = `API key: ${accountName(accountId)}`;
+  document.querySelector("#api-key-value").textContent = apiKey;
+  document.querySelector("#api-key-dialog").showModal();
+}
+
+async function requestLogCode(accountId) {
+  await request(`/api/accounts/${accountId}/log-access`, { method: "POST" });
+  document.querySelector("#log-request-step").hidden = true;
+  document.querySelector("#log-code-form").hidden = false;
+  document.querySelector("#log-code").focus();
+  showToast("Codigo enviado a la cuenta de WhatsApp.");
+}
+
+async function showLogs(accountId, accessToken) {
+  const { messages } = await request(`/api/accounts/${accountId}/logs`, { headers: { "X-Log-Access-Token": accessToken } });
+  const container = document.querySelector("#message-logs");
+  container.replaceChildren();
+  if (!messages.length) {
+    container.innerHTML = '<p class="logs-empty">Aun no hay mensajes registrados para esta cuenta.</p>';
+  }
+  messages.slice().reverse().forEach((message) => {
+    const item = document.createElement("article");
+    item.className = `log-entry ${message.direction}`;
+    const meta = document.createElement("p");
+    meta.textContent = `${message.direction === "inbound" ? "Recibido de" : "Enviado a"} ${message.from || message.to || "desconocido"} - ${new Date(message.timestamp).toLocaleString("es-MX")}`;
+    const text = document.createElement("p");
+    text.textContent = message.text;
+    item.append(meta, text);
+    container.append(item);
+  });
+  document.querySelector("#logs-title").textContent = `Mensajes: ${accountName(accountId)}`;
+  document.querySelector("#logs-dialog").showModal();
+}
+
 function showAccountDialog() {
   accountDialog.showModal();
   document.querySelector("#account-name").focus();
@@ -110,11 +154,11 @@ accountForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.querySelector("#account-name").value;
   try {
-    const { account } = await request("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    const { account, apiKey } = await request("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
     accountForm.reset();
     accountDialog.close();
     await loadAccounts();
-    openQr(account.id);
+    showApiKey(account.id, apiKey);
   } catch (error) { showToast(error.message); }
 });
 
@@ -122,9 +166,38 @@ accountsElement.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   if (button.dataset.action === "qr") openQr(button.dataset.id);
+  if (button.dataset.action === "api-key" && confirm("Esto invalidara la API key anterior. Continuar?")) {
+    try { const { apiKey } = await request(`/api/accounts/${button.dataset.id}/api-key`, { method: "POST" }); showApiKey(button.dataset.id, apiKey); await loadAccounts(); } catch (error) { showToast(error.message); }
+  }
+  if (button.dataset.action === "logs") {
+    selectedAccountId = button.dataset.id;
+    document.querySelector("#log-access-title").textContent = `Ver mensajes: ${accountName(selectedAccountId)}`;
+    document.querySelector("#log-request-step").hidden = false;
+    document.querySelector("#log-code-form").hidden = true;
+    document.querySelector("#log-access-dialog").showModal();
+  }
   if (button.dataset.action === "delete" && confirm("Se eliminara la sesion y sus credenciales locales. Continuar?")) {
     try { await request(`/api/accounts/${button.dataset.id}`, { method: "DELETE" }); await loadAccounts(); showToast("Cuenta eliminada."); } catch (error) { showToast(error.message); }
   }
+});
+
+document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+  button.addEventListener("click", () => document.querySelector(`#${button.dataset.closeDialog}`).close());
+});
+document.querySelector("#copy-api-key").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(currentApiKey); showToast("API key copiada."); } catch { showToast("No se pudo copiar la API key."); }
+});
+document.querySelector("#request-log-code").addEventListener("click", async () => {
+  try { await requestLogCode(selectedAccountId); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#log-code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const { accessToken } = await request(`/api/accounts/${selectedAccountId}/log-access`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: document.querySelector("#log-code").value }) });
+    document.querySelector("#log-code-form").reset();
+    document.querySelector("#log-access-dialog").close();
+    await showLogs(selectedAccountId, accessToken);
+  } catch (error) { showToast(error.message); }
 });
 
 messageForm.addEventListener("submit", async (event) => {
