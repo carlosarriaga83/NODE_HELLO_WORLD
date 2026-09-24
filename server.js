@@ -102,6 +102,16 @@ async function initializeStorage() {
       INDEX wa_message_logs_account_created (account_id, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+  await database.query(`
+    CREATE TABLE IF NOT EXISTS wa_session_files (
+      account_id CHAR(36) NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      file_content LONGTEXT NOT NULL,
+      updated_at DATETIME(3) NOT NULL,
+      PRIMARY KEY (account_id, file_name),
+      CONSTRAINT wa_session_files_account_fk FOREIGN KEY (account_id) REFERENCES wa_accounts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 
   const [existing] = await database.query("SELECT COUNT(*) AS count FROM wa_accounts");
   if (Number(existing[0].count) === 0 && accounts.length > 0) {
@@ -141,6 +151,48 @@ async function persistAccount(account) {
      ON DUPLICATE KEY UPDATE name = VALUES(name), api_key_hash = VALUES(api_key_hash), api_key_prefix = VALUES(api_key_prefix)`,
     [account.id, account.name, account.apiKeyHash, account.apiKeyPrefix, new Date(account.createdAt)]
   );
+}
+
+async function restoreSessionFiles(accountId) {
+  if (!database) return;
+  const sessionPath = path.join(sessionsDirectory, accountId);
+  const [files] = await database.execute(
+    "SELECT file_name AS fileName, file_content AS fileContent FROM wa_session_files WHERE account_id = ?",
+    [accountId]
+  );
+  if (!files.length) return;
+  fs.mkdirSync(sessionPath, { recursive: true });
+  for (const file of files) {
+    fs.writeFileSync(path.join(sessionPath, file.fileName), file.fileContent, "utf8");
+  }
+}
+
+async function persistSessionFiles(accountId) {
+  if (!database) return;
+  const sessionPath = path.join(sessionsDirectory, accountId);
+  let fileNames;
+  try {
+    fileNames = fs.readdirSync(sessionPath).filter((fileName) => fileName.endsWith(".json"));
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  for (const fileName of fileNames) {
+    const fileContent = fs.readFileSync(path.join(sessionPath, fileName), "utf8");
+    await database.execute(
+      `INSERT INTO wa_session_files (account_id, file_name, file_content, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE file_content = VALUES(file_content), updated_at = VALUES(updated_at)`,
+      [accountId, fileName, fileContent, new Date()]
+    );
+  }
+}
+
+async function clearSessionFiles(accountId) {
+  fs.rmSync(path.join(sessionsDirectory, accountId), { recursive: true, force: true });
+  if (database) {
+    await database.execute("DELETE FROM wa_session_files WHERE account_id = ?", [accountId]);
+  }
 }
 
 function publicAccount(account) {
@@ -329,6 +381,7 @@ async function connectAccount(account) {
   connections.set(account.id, connection);
 
   try {
+    await restoreSessionFiles(account.id);
     const { state, saveCreds } = await useMultiFileAuthState(path.join(sessionsDirectory, account.id));
     if (connection.cancelled || !accounts.some((item) => item.id === account.id)) {
       fs.rmSync(path.join(sessionsDirectory, account.id), { recursive: true, force: true });
@@ -347,7 +400,11 @@ async function connectAccount(account) {
     });
 
     connection.socket = socket;
-    socket.ev.on("creds.update", saveCreds);
+    socket.ev.on("creds.update", (credentials) => {
+      void saveCreds(credentials)
+        .then(() => persistSessionFiles(account.id))
+        .catch((error) => console.error(`No se pudo guardar la sesion de ${account.id}:`, error.message));
+    });
     socket.ev.on("messages.upsert", ({ type, messages }) => {
       if (connection.cancelled || !accounts.some((item) => item.id === account.id)) return;
       if (type !== "notify") return;
@@ -384,6 +441,9 @@ async function connectAccount(account) {
         connection.qr = null;
         connection.socket = null;
         connection.isConnecting = false;
+        if (loggedOut) {
+          await clearSessionFiles(account.id);
+        }
         if (!loggedOut && !connection.cancelled && accounts.some((item) => item.id === account.id)) {
           setTimeout(() => connectAccount(account), 3000);
         }
@@ -588,7 +648,7 @@ const server = http.createServer(async (request, response) => {
         } else {
           saveAccounts();
         }
-        fs.rmSync(path.join(sessionsDirectory, accountId), { recursive: true, force: true });
+        await clearSessionFiles(accountId);
         fs.rmSync(logFileFor(accountId), { force: true });
         sendJson(response, 200, { deleted: true });
         return;
