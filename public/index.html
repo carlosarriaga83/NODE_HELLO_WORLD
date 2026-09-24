@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
   </head>
   <body>
     <div class="app-shell">
@@ -72,6 +72,29 @@
       </div>
     </dialog>
 
+    <dialog id="link-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="kicker">VINCULACION</p>
+          <h2 id="link-title">Vincular cuenta</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-dialog="link-dialog" aria-label="Cerrar"><i data-lucide="x"></i></button>
+      </div>
+      <div id="link-options">
+        <p class="dialog-hint"><i data-lucide="lightbulb"></i> Elige el metodo que prefieras. Ambos vinculan la misma cuenta de WhatsApp.</p>
+        <div class="link-methods">
+          <button class="link-method" id="link-with-qr" type="button"><i data-lucide="qr-code"></i><span><strong>Escanear QR</strong><small>Usa la camara de WhatsApp</small></span><i data-lucide="arrow-right"></i></button>
+          <form id="pairing-code-form"><label>Vincular con numero<input id="pairing-phone" inputmode="tel" autocomplete="tel" placeholder="5215512345678" required></label><p class="api-example">Incluye codigo de pais, sin <code>+</code>, espacios ni guiones.</p><button class="button secondary full-width" type="submit"><i data-lucide="smartphone"></i> Obtener codigo</button></form>
+        </div>
+      </div>
+      <div id="pairing-code-result" hidden>
+        <p class="dialog-hint"><i data-lucide="smartphone"></i> En WhatsApp abre <b>Dispositivos vinculados</b>, elige vincular con numero e introduce este codigo.</p>
+        <code class="pairing-code" id="pairing-code"></code>
+        <p class="api-example">El codigo es temporal. Si expira, solicita otro con el mismo numero.</p>
+        <button class="button ghost full-width" id="new-pairing-code" type="button">Solicitar otro codigo</button>
+      </div>
+    </dialog>
+
     <dialog id="api-key-dialog">
       <div class="dialog-heading"><div><p class="kicker">ACCESO PROGRAMATICO</p><h2 id="api-key-title">API key</h2></div><button class="icon-button" type="button" data-close-dialog="api-key-dialog" aria-label="Cerrar"><i data-lucide="x"></i></button></div>
       <p class="dialog-hint"><i data-lucide="triangle-alert"></i> Copia esta clave ahora. Por seguridad no podras verla de nuevo.</p>
@@ -92,6 +115,6 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
   </body>
 </html>

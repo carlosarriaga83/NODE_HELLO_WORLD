@@ -2,6 +2,7 @@ const accountsElement = document.querySelector("#accounts");
 const emptyState = document.querySelector("#empty-state");
 const accountDialog = document.querySelector("#account-dialog");
 const qrDialog = document.querySelector("#qr-dialog");
+const linkDialog = document.querySelector("#link-dialog");
 const accountForm = document.querySelector("#account-form");
 const messageForm = document.querySelector("#message-form");
 const sender = document.querySelector("#sender");
@@ -9,6 +10,7 @@ const toast = document.querySelector("#toast");
 let accounts = [];
 let qrInterval;
 let selectedAccountId = null;
+let selectedLinkAccountId = null;
 let currentApiKey = null;
 
 function refreshIcons() {
@@ -41,7 +43,7 @@ function renderAccounts() {
       <div class="account-meta">
         <span class="account-status ${statusClass}">${account.status}</span>
         <span class="account-actions">
-          <button class="text-button" data-action="qr" data-id="${account.id}" type="button">${account.hasQr ? "Ver QR" : "Vincular"}</button>
+          <button class="text-button" data-action="link" data-id="${account.id}" type="button">${account.hasQr ? "Ver QR" : "Vincular"}</button>
           <button class="text-button" data-action="api-key" data-id="${account.id}" type="button">API key</button>
           <button class="text-button" data-action="logs" data-id="${account.id}" type="button">Registro</button>
           <button class="text-button delete" data-action="delete" data-id="${account.id}" type="button">Eliminar</button>
@@ -143,6 +145,29 @@ function showAccountDialog() {
   document.querySelector("#account-name").focus();
 }
 
+function openLinkDialog(accountId) {
+  selectedLinkAccountId = accountId;
+  document.querySelector("#link-title").textContent = `Vincular: ${accountName(accountId)}`;
+  document.querySelector("#pairing-code-form").reset();
+  document.querySelector("#link-options").hidden = false;
+  document.querySelector("#pairing-code-result").hidden = true;
+  linkDialog.showModal();
+  document.querySelector("#pairing-phone").focus();
+}
+
+async function requestPairingCode() {
+  const phone = document.querySelector("#pairing-phone").value;
+  const { code } = await request(`/api/accounts/${selectedLinkAccountId}/pairing-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone })
+  });
+  document.querySelector("#pairing-code").textContent = code;
+  document.querySelector("#link-options").hidden = true;
+  document.querySelector("#pairing-code-result").hidden = false;
+  await loadAccounts();
+}
+
 document.querySelectorAll("#add-account-button, #add-account-button-secondary, #empty-add-account").forEach((button) => {
   button.addEventListener("click", showAccountDialog);
 });
@@ -165,7 +190,11 @@ accountForm.addEventListener("submit", async (event) => {
 accountsElement.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
-  if (button.dataset.action === "qr") openQr(button.dataset.id);
+  if (button.dataset.action === "link") {
+    const account = accounts.find((item) => item.id === button.dataset.id);
+    if (account?.hasQr) openQr(button.dataset.id);
+    else openLinkDialog(button.dataset.id);
+  }
   if (button.dataset.action === "api-key" && confirm("Esto invalidara la API key anterior. Continuar?")) {
     try { const { apiKey } = await request(`/api/accounts/${button.dataset.id}/api-key`, { method: "POST" }); showApiKey(button.dataset.id, apiKey); await loadAccounts(); } catch (error) { showToast(error.message); }
   }
@@ -179,6 +208,18 @@ accountsElement.addEventListener("click", async (event) => {
   if (button.dataset.action === "delete" && confirm("Se eliminara la sesion y sus credenciales locales. Continuar?")) {
     try { await request(`/api/accounts/${button.dataset.id}`, { method: "DELETE" }); await loadAccounts(); showToast("Cuenta eliminada."); } catch (error) { showToast(error.message); }
   }
+});
+
+document.querySelector("#link-with-qr").addEventListener("click", () => {
+  linkDialog.close();
+  openQr(selectedLinkAccountId);
+});
+document.querySelector("#pairing-code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try { await requestPairingCode(); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#new-pairing-code").addEventListener("click", async () => {
+  try { await requestPairingCode(); } catch (error) { showToast(error.message); }
 });
 
 document.querySelectorAll("[data-close-dialog]").forEach((button) => {

@@ -21,7 +21,7 @@ npm run dev
 ## Uso del panel
 
 1. Pulsa **Nueva cuenta** y asigna un nombre interno.
-2. En WhatsApp, abre **Dispositivos vinculados** y escanea el QR mostrado por el panel.
+2. Pulsa **Vincular** y elige **Escanear QR** o **Vincular con numero**. Para el segundo metodo, indica el numero internacional de la cuenta, abre **Dispositivos vinculados** en WhatsApp, elige vincular con numero e introduce el codigo temporal mostrado por el panel.
 3. Al crearla, copia la API key mostrada: solo se muestra una vez. Puedes rotarla desde la tarjeta de la cuenta.
 4. En WhatsApp, abre **Dispositivos vinculados** y escanea el QR mostrado por el panel.
 5. Una vez conectada, selecciona la cuenta en **Nuevo mensaje**, indica el numero internacional con solo digitos y escribe el mensaje.
@@ -35,6 +35,7 @@ Las sesiones de Baileys se guardan en `data/sessions/` y siguen excluidas de Git
 | `GET` | `/api/accounts` | Lista cuentas y estado de conexion. |
 | `POST` | `/api/accounts` | Crea una cuenta con `{ "name": "Ventas" }`. |
 | `GET` | `/api/accounts/:id/qr` | Obtiene el QR vigente de una cuenta. |
+| `POST` | `/api/accounts/:id/pairing-code` | Genera un codigo de vinculacion con `{ "phone": "5215512345678" }`. |
 | `POST` | `/api/accounts/:id/messages` | Envia `{ "to": "5215512345678", "text": "Hola" }`. |
 | `DELETE` | `/api/accounts/:id` | Elimina la cuenta y sus credenciales locales. |
 

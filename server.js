@@ -247,6 +247,21 @@ function normalizePhone(phone) {
   return `${digits}@s.whatsapp.net`;
 }
 
+function normalizePairingPhone(phone) {
+  const recipient = normalizePhone(phone);
+  return recipient?.replace("@s.whatsapp.net", "") || null;
+}
+
+async function waitForSocket(account) {
+  void connectAccount(account);
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const connection = connections.get(account.id);
+    if (connection?.socket) return connection;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("La sesion todavia se esta preparando. Intenta de nuevo en unos segundos.");
+}
+
 async function readBody(request) {
   let body = "";
   for await (const chunk of request) {
@@ -264,7 +279,7 @@ async function connectAccount(account) {
     return;
   }
 
-  const connection = { status: "conectando", qr: null, phone: null, isConnecting: true, socket: null, cancelled: false };
+  const connection = { status: "conectando", qr: null, phone: null, isConnecting: true, socket: null, cancelled: false, linkMethod: null };
   connections.set(account.id, connection);
 
   try {
@@ -305,7 +320,7 @@ async function connectAccount(account) {
         socket.end(undefined);
         return;
       }
-      if (qr) {
+      if (qr && connection.linkMethod !== "number") {
         connection.qr = await QRCode.toDataURL(qr, { margin: 1, width: 320 });
         connection.status = "esperando QR";
       }
@@ -356,7 +371,7 @@ function serveStatic(requestUrl, response) {
 
 const server = http.createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
-  const accountMatch = requestUrl.pathname.match(/^\/api\/accounts\/([\w-]+)(?:\/(qr|messages|api-key|log-access|logs))?$/);
+  const accountMatch = requestUrl.pathname.match(/^\/api\/accounts\/([\w-]+)(?:\/(qr|messages|api-key|log-access|logs|pairing-code))?$/);
 
   try {
     if (request.method === "GET" && requestUrl.pathname === "/api/accounts") {
@@ -426,7 +441,28 @@ const server = http.createServer(async (request, response) => {
       const connection = connections.get(accountId);
 
       if (request.method === "GET" && action === "qr") {
+        if (connection) connection.linkMethod = "qr";
         sendJson(response, 200, { qr: connection?.qr || null, status: connection?.status || "desconectada" });
+        return;
+      }
+
+      if (request.method === "POST" && action === "pairing-code") {
+        const body = await readBody(request);
+        const phone = normalizePairingPhone(body.phone);
+        if (!phone) {
+          sendJson(response, 400, { error: "Indica un numero internacional valido, con codigo de pais." });
+          return;
+        }
+        if (connection?.status === "conectada") {
+          sendJson(response, 409, { error: "La cuenta ya esta vinculada." });
+          return;
+        }
+        const activeConnection = await waitForSocket(account);
+        activeConnection.linkMethod = "number";
+        const code = await activeConnection.socket.requestPairingCode(phone);
+        activeConnection.qr = null;
+        activeConnection.status = "esperando codigo";
+        sendJson(response, 200, { code, expiresIn: 60 });
         return;
       }
 
