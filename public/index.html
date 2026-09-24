@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=9">
   </head>
   <body>
     <div class="app-shell">
@@ -35,7 +35,22 @@
             <article class="metric-card"><span class="metric-icon lime"><i data-lucide="wifi"></i></span><div><p>Conectadas ahora</p><strong id="online-count">0</strong><small>Listas para enviar</small></div></article>
             <article class="metric-card"><span class="metric-icon amber"><i data-lucide="scan-line"></i></span><div><p>Requieren accion</p><strong id="attention-count">0</strong><small>QR pendiente o sin sesion</small></div></article>
           </div></section>
-          <section id="cuentas" class="panel accounts-panel page-view" data-view="cuentas"><div class="panel-heading"><div><p class="eyebrow"><span></span> TUS CONEXIONES</p><h2>Cuentas de WhatsApp</h2><p class="panel-copy">Cada cuenta tiene su propia sesion y puede administrarse por separado.</p></div><button class="button secondary" id="add-account-button-secondary" type="button"><i data-lucide="plus"></i> Nueva cuenta</button></div><div class="account-grid" id="accounts" aria-live="polite"><div class="empty-state" id="empty-state"><span class="empty-icon"><i data-lucide="qr-code"></i></span><div><strong>Conecta tu primera cuenta</strong><p>Asigna un nombre, abre WhatsApp y elige QR o numero.</p><button class="text-action" id="empty-add-account" type="button">Vincular una cuenta <i data-lucide="arrow-right"></i></button></div></div></div></section>
+          <section id="cuentas" class="panel accounts-panel page-view" data-view="cuentas">
+            <div class="panel-heading"><div><p class="eyebrow"><span></span> TUS CONEXIONES</p><h2>Cuentas de WhatsApp</h2><p class="panel-copy">Selecciona una o varias cuentas para trabajar sus conversaciones en una sola bandeja.</p></div><button class="button secondary" id="add-account-button-secondary" type="button"><i data-lucide="plus"></i> Nueva cuenta</button></div>
+            <div class="account-selection-bar"><span id="selected-account-count">0 cuentas seleccionadas</span><button class="button primary" id="open-inbox" type="button" disabled><i data-lucide="messages-square"></i> Abrir bandeja</button></div>
+            <div class="account-grid" id="accounts" aria-live="polite"><div class="empty-state" id="empty-state"><span class="empty-icon"><i data-lucide="qr-code"></i></span><div><strong>Conecta tu primera cuenta</strong><p>Asigna un nombre, abre WhatsApp y elige QR o numero.</p><button class="text-action" id="empty-add-account" type="button">Vincular una cuenta <i data-lucide="arrow-right"></i></button></div></div></div>
+            <section class="inbox-workspace" id="inbox-workspace" hidden>
+              <header class="inbox-heading"><div><p class="kicker">BANDEJA MULTICUENTA</p><h2>Conversaciones</h2></div><button class="icon-button" id="close-inbox" type="button" aria-label="Cerrar bandeja"><i data-lucide="x"></i></button></header>
+              <div class="inbox-layout">
+                <aside class="inbox-accounts"><p class="inbox-column-label">CUENTAS</p><div id="inbox-account-list"></div></aside>
+                <aside class="inbox-conversations">
+                  <form class="inbox-search" id="inbox-search"><input id="inbox-query" type="search" placeholder="Buscar contacto o mensaje"><select id="inbox-direction" aria-label="Filtrar por direccion"><option value="">Todos</option><option value="inbound">Recibidos</option><option value="outbound">Enviados</option></select><button class="icon-button" type="submit" aria-label="Buscar"><i data-lucide="search"></i></button></form>
+                  <div id="conversation-list" class="conversation-list"><div class="inbox-placeholder"><i data-lucide="lock-keyhole"></i><p>Desbloquea una cuenta para ver sus conversaciones.</p></div></div>
+                </aside>
+                <section class="chat-panel" id="chat-panel"><div class="inbox-placeholder"><i data-lucide="message-square"></i><p>Selecciona una conversacion para leer y responder.</p></div></section>
+              </div>
+            </section>
+          </section>
           <section id="mensajes" class="message-layout page-view" data-view="mensajes"><aside class="message-help"><span class="message-help-icon"><i data-lucide="send-horizontal"></i></span><p class="eyebrow"><span></span> ENVIO DIRECTO</p><h2>Envio uno a uno,<br>sin friccion.</h2><p>Elige una cuenta conectada y escribe el numero en formato internacional.</p><div class="hint"><i data-lucide="info"></i><span>No agregues el simbolo <b>+</b>, espacios ni guiones.</span></div></aside><section class="panel composer"><div class="panel-heading compact"><div><h2>Nuevo mensaje</h2><p class="panel-copy">Los envios se realizan desde la cuenta que selecciones.</p></div></div><form id="message-form"><label>Cuenta emisora<select id="sender" required disabled><option value="">Selecciona una cuenta conectada</option></select></label><label>Destinatario<input id="recipient" inputmode="tel" placeholder="5215512345678" required></label><label class="message-field">Mensaje<textarea id="message" rows="5" placeholder="Escribe tu mensaje aqui" required></textarea></label><div class="form-footer"><span><i data-lucide="shield-check"></i> Envio desde una sesion vinculada</span><button class="button primary" id="send-button" type="submit"><i data-lucide="send"></i> Enviar mensaje</button></div></form></section></section>
           <section id="wiki" class="api-wiki page-view" data-view="wiki">
             <div class="wiki-heading"><div><p class="eyebrow"><span></span> DOCUMENTACION PARA DESARROLLO</p><h2>API Wiki</h2><p class="panel-copy">Una API key controla una sola cuenta. Creala o rotala desde la tarjeta de la cuenta tras verificar el codigo enviado a su WhatsApp.</p></div><span class="wiki-url">https://wa.2api2.com</span></div>
@@ -193,6 +208,6 @@ Escribe una integracion pequena, sin dependencias innecesarias, usando variables
 
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
   </body>
 </html>

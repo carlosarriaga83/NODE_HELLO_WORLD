@@ -14,6 +14,11 @@ let selectedLinkAccountId = null;
 let currentApiKey = null;
 let currentLogAccessToken = null;
 const themeToggle = document.querySelector("#theme-toggle");
+const selectedInboxAccounts = new Set();
+const inboxTokens = new Map();
+const inboxData = new Map();
+let activeInboxAccountId = null;
+let activeConversationJid = null;
 
 function applyTheme(theme) {
   const isLight = theme === "light";
@@ -45,6 +50,20 @@ function showToast(message) {
   setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
+}
+
+function initials(value) {
+  return String(value || "?").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function avatar(contact, className = "contact-avatar") {
+  return contact.photoUrl
+    ? `<span class="${className}">${escapeHtml(initials(contact.name))}<img src="${escapeHtml(contact.photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"></span>`
+    : `<span class="${className}">${escapeHtml(initials(contact.name))}</span>`;
+}
+
 async function request(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
@@ -53,6 +72,9 @@ async function request(url, options) {
 }
 
 function renderAccounts() {
+  selectedInboxAccounts.forEach((accountId) => {
+    if (!accounts.some((account) => account.id === accountId)) selectedInboxAccounts.delete(accountId);
+  });
   accountsElement.querySelectorAll(".account-card").forEach((card) => card.remove());
   emptyState.hidden = accounts.length > 0;
   for (const account of accounts) {
@@ -60,6 +82,7 @@ function renderAccounts() {
     const card = document.createElement("article");
     card.className = "account-card";
     card.innerHTML = `
+      <label class="account-select" title="Incluir en la bandeja"><input type="checkbox" data-select-account="${account.id}" ${selectedInboxAccounts.has(account.id) ? "checked" : ""}><span></span></label>
       <p class="account-name"></p>
       <p class="account-phone"></p>
       <div class="account-meta">
@@ -88,6 +111,77 @@ function renderAccounts() {
     sender.add(option);
   });
   sender.disabled = connected.length === 0;
+  updateInboxSelection();
+  refreshIcons();
+}
+
+function updateInboxSelection() {
+  const count = selectedInboxAccounts.size;
+  document.querySelector("#selected-account-count").textContent = `${count} ${count === 1 ? "cuenta seleccionada" : "cuentas seleccionadas"}`;
+  document.querySelector("#open-inbox").disabled = count === 0;
+}
+
+function renderInboxAccounts() {
+  const container = document.querySelector("#inbox-account-list");
+  container.replaceChildren();
+  selectedInboxAccounts.forEach((accountId) => {
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) return;
+    const unlocked = inboxTokens.has(accountId);
+    const item = document.createElement("article");
+    item.className = `inbox-account ${activeInboxAccountId === accountId ? "active" : ""}`;
+    item.dataset.accountId = accountId;
+    item.innerHTML = `<button class="inbox-account-main" type="button" data-inbox-account="${accountId}" ${unlocked ? "" : "disabled"}><span class="account-avatar">${escapeHtml(initials(account.name))}</span><span><strong>${escapeHtml(account.name)}</strong><small>${escapeHtml(account.phone || account.status)}</small></span><i data-lucide="${unlocked ? "lock-open" : "lock-keyhole"}"></i></button>${unlocked ? "" : `<div class="account-unlock"><button class="text-action" type="button" data-request-inbox-code="${accountId}">Enviar codigo</button><form data-inbox-code-form="${accountId}" hidden><input inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" aria-label="Codigo para ${escapeHtml(account.name)}" required><button class="icon-button" type="submit" aria-label="Verificar"><i data-lucide="arrow-right"></i></button></form><small data-inbox-status="${accountId}">Pendiente de verificacion</small></div>`}`;
+    container.append(item);
+  });
+  refreshIcons();
+}
+
+function renderConversations(accountId) {
+  const container = document.querySelector("#conversation-list");
+  const conversations = inboxData.get(accountId)?.conversations || [];
+  if (!conversations.length) {
+    container.innerHTML = '<div class="inbox-placeholder"><i data-lucide="message-circle-off"></i><p>No hay conversaciones que coincidan.</p></div>';
+    refreshIcons();
+    return;
+  }
+  container.innerHTML = conversations.map((conversation) => `<button class="conversation-item ${activeConversationJid === conversation.jid ? "active" : ""}" type="button" data-conversation="${escapeHtml(conversation.jid)}">${avatar(conversation)}<span class="conversation-copy"><strong>${escapeHtml(conversation.name)}</strong><small>${escapeHtml(conversation.lastMessage)}</small></span><time>${new Date(conversation.timestamp).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}</time></button>`).join("");
+  refreshIcons();
+}
+
+function resetChat() {
+  document.querySelector("#chat-panel").innerHTML = '<div class="inbox-placeholder"><i data-lucide="message-square"></i><p>Selecciona una conversacion para leer y responder.</p></div>';
+  refreshIcons();
+}
+
+async function loadInboxAccount(accountId, contact = "") {
+  const params = new URLSearchParams();
+  const query = document.querySelector("#inbox-query").value.trim();
+  const direction = document.querySelector("#inbox-direction").value;
+  if (query) params.set("query", query);
+  if (direction) params.set("direction", direction);
+  if (contact) params.set("contact", contact);
+  const data = await request(`/api/accounts/${accountId}/inbox?${params}`, { headers: { "X-Log-Access-Token": inboxTokens.get(accountId) } });
+  inboxData.set(accountId, data);
+  renderConversations(accountId);
+  if (contact) renderChat(accountId, contact, data.messages);
+}
+
+function renderChat(accountId, jid, messages) {
+  const conversation = inboxData.get(accountId)?.conversations.find((item) => item.jid === jid) || { jid, name: jid.split("@")[0], photoUrl: null };
+  const panel = document.querySelector("#chat-panel");
+  panel.innerHTML = `<header class="chat-heading">${avatar(conversation)}<span><strong>${escapeHtml(conversation.name)}</strong><small>${escapeHtml(jid.split("@")[0])}</small></span></header><div class="chat-messages">${messages.length ? messages.map((message) => `<article class="chat-message ${message.direction}"><p>${escapeHtml(message.text)}</p><time>${new Date(message.timestamp).toLocaleString("es-MX")}</time></article>`).join("") : '<div class="inbox-placeholder"><p>No hay mensajes para mostrar.</p></div>'}</div><form class="chat-reply" id="chat-reply"><textarea rows="2" maxlength="4096" placeholder="Escribe una respuesta" required></textarea><button class="button primary" type="submit"><i data-lucide="send"></i><span>Enviar</span></button></form>`;
+  panel.querySelector(".chat-messages").scrollTop = panel.querySelector(".chat-messages").scrollHeight;
+  panel.querySelector("#chat-reply").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = event.currentTarget.querySelector("textarea").value.trim();
+    const recipient = jid.split("@")[0];
+    try {
+      await request(`/api/accounts/${accountId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: recipient, text }) });
+      event.currentTarget.reset();
+      await loadInboxAccount(accountId, jid);
+    } catch (error) { showToast(error.message); }
+  });
   refreshIcons();
 }
 
@@ -231,6 +325,13 @@ accountForm.addEventListener("submit", async (event) => {
 });
 
 accountsElement.addEventListener("click", async (event) => {
+  const selector = event.target.closest("input[data-select-account]");
+  if (selector) {
+    if (selector.checked) selectedInboxAccounts.add(selector.dataset.selectAccount);
+    else selectedInboxAccounts.delete(selector.dataset.selectAccount);
+    updateInboxSelection();
+    return;
+  }
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   if (button.dataset.action === "link") {
@@ -331,6 +432,69 @@ document.querySelector("#log-filters").addEventListener("submit", async (event) 
 document.querySelector("#clear-log-filters").addEventListener("click", async () => {
   document.querySelector("#log-filters").reset();
   try { await loadLogs(); } catch (error) { showToast(error.message); }
+});
+
+document.querySelector("#open-inbox").addEventListener("click", () => {
+  document.querySelector("#inbox-workspace").hidden = false;
+  renderInboxAccounts();
+  document.querySelector("#inbox-workspace").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+document.querySelector("#close-inbox").addEventListener("click", () => {
+  document.querySelector("#inbox-workspace").hidden = true;
+});
+document.querySelector("#inbox-account-list").addEventListener("click", async (event) => {
+  const requestButton = event.target.closest("[data-request-inbox-code]");
+  if (requestButton) {
+    const accountId = requestButton.dataset.requestInboxCode;
+    try {
+      await request(`/api/accounts/${accountId}/log-access`, { method: "POST" });
+      const form = document.querySelector(`[data-inbox-code-form="${accountId}"]`);
+      form.hidden = false;
+      form.querySelector("input").focus();
+      document.querySelector(`[data-inbox-status="${accountId}"]`).textContent = "Codigo enviado; ingresalo cuando lo tengas";
+      showToast(`Codigo enviado a ${accountName(accountId)}.`);
+    } catch (error) { showToast(error.message); }
+    return;
+  }
+  const accountButton = event.target.closest("[data-inbox-account]");
+  if (!accountButton) return;
+  activeInboxAccountId = accountButton.dataset.inboxAccount;
+  activeConversationJid = null;
+  resetChat();
+  renderInboxAccounts();
+  try { await loadInboxAccount(activeInboxAccountId); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#inbox-account-list").addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-inbox-code-form]");
+  if (!form) return;
+  event.preventDefault();
+  const accountId = form.dataset.inboxCodeForm;
+  try {
+    const { accessToken } = await request(`/api/accounts/${accountId}/log-access`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: form.querySelector("input").value }) });
+    inboxTokens.set(accountId, accessToken);
+    activeInboxAccountId = accountId;
+    activeConversationJid = null;
+    resetChat();
+    renderInboxAccounts();
+    await loadInboxAccount(accountId);
+    showToast(`${accountName(accountId)} desbloqueada.`);
+  } catch (error) { showToast(error.message); }
+});
+document.querySelector("#conversation-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-conversation]");
+  if (!button || !activeInboxAccountId) return;
+  activeConversationJid = button.dataset.conversation;
+  renderConversations(activeInboxAccountId);
+  try { await loadInboxAccount(activeInboxAccountId, activeConversationJid); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#inbox-search").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!activeInboxAccountId) return;
+  try { await loadInboxAccount(activeInboxAccountId, activeConversationJid || ""); } catch (error) { showToast(error.message); }
+});
+document.querySelector("#inbox-direction").addEventListener("change", async () => {
+  if (!activeInboxAccountId) return;
+  try { await loadInboxAccount(activeInboxAccountId, activeConversationJid || ""); } catch (error) { showToast(error.message); }
 });
 
 function activateView() {

@@ -26,6 +26,8 @@ npm run dev
 4. En WhatsApp, abre **Dispositivos vinculados** y escanea el QR mostrado por el panel.
 5. Una vez conectada, selecciona la cuenta en **Nuevo mensaje**, indica el numero internacional con solo digitos y escribe el mensaje.
 
+En **Cuentas** puedes marcar varias conexiones y abrir **Bandeja**. Cada cuenta se desbloquea por separado con el codigo enviado a su propio WhatsApp, por lo que puedes ingresar los codigos conforme los recibas. Una cuenta bloqueada no expone sus conversaciones. La bandeja permite buscar y filtrar mensajes, cambiar entre cuentas y conversaciones, y responder desde el mismo chat. Los nombres se obtienen de los contactos sincronizados y del nombre publicado por el remitente; cuando WhatsApp lo permite, tambien se muestra su foto de perfil.
+
 Las sesiones de Baileys se guardan en `data/sessions/` y siguen excluidas de Git; no elimines esa carpeta en el servidor si quieres conservar las conexiones vinculadas. En Hostinger, las cuentas, sus hashes de API key y los registros cifrados se conservan en MySQL. En desarrollo, si no defines variables de MySQL, la aplicacion usa `data/accounts.json` y `data/logs/` como respaldo local.
 
 ## API del dashboard
@@ -36,6 +38,7 @@ Las sesiones de Baileys se guardan en `data/sessions/` y siguen excluidas de Git
 | `POST` | `/api/accounts` | Crea una cuenta con `{ "name": "Ventas" }`. |
 | `GET` | `/api/accounts/:id/qr` | Obtiene el QR vigente de una cuenta. |
 | `POST` | `/api/accounts/:id/pairing-code` | Genera un codigo de vinculacion con `{ "phone": "5215512345678" }`. |
+| `GET` | `/api/accounts/:id/inbox` | Devuelve conversaciones y mensajes tras validar `X-Log-Access-Token`. |
 | `POST` | `/api/accounts/:id/messages` | Envia `{ "to": "5215512345678", "text": "Hola" }`. |
 | `DELETE` | `/api/accounts/:id` | Elimina la cuenta y sus credenciales locales. |
 

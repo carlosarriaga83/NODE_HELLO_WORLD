@@ -17,6 +17,8 @@ const connections = new Map();
 const logAccessChallenges = new Map();
 const logAccessTokens = new Map();
 const apiKeyAccessChallenges = new Map();
+const contactCache = new Map();
+const loadedContactAccounts = new Set();
 const databaseVariablesPresent = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"].some((key) => process.env[key]);
 const databaseEnabled = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"].every((key) => process.env[key]);
 const database = databaseEnabled
@@ -112,6 +114,17 @@ async function initializeStorage() {
       CONSTRAINT wa_session_files_account_fk FOREIGN KEY (account_id) REFERENCES wa_accounts(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+  await database.query(`
+    CREATE TABLE IF NOT EXISTS wa_contacts (
+      account_id CHAR(36) NOT NULL,
+      jid VARCHAR(191) NOT NULL,
+      display_name VARCHAR(160) NULL,
+      photo_url TEXT NULL,
+      updated_at DATETIME(3) NOT NULL,
+      PRIMARY KEY (account_id, jid),
+      CONSTRAINT wa_contacts_account_fk FOREIGN KEY (account_id) REFERENCES wa_accounts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 
   const [existing] = await database.query("SELECT COUNT(*) AS count FROM wa_accounts");
   if (Number(existing[0].count) === 0 && accounts.length > 0) {
@@ -193,6 +206,61 @@ async function clearSessionFiles(accountId) {
   if (database) {
     await database.execute("DELETE FROM wa_session_files WHERE account_id = ?", [accountId]);
   }
+}
+
+function contactMapFor(accountId) {
+  if (!contactCache.has(accountId)) contactCache.set(accountId, new Map());
+  return contactCache.get(accountId);
+}
+
+function contactName(contact) {
+  return contact.name || contact.notify || contact.verifiedName || contact.username || null;
+}
+
+async function persistContacts(accountId, incomingContacts) {
+  const storedContacts = [];
+  for (const contact of incomingContacts) {
+    for (const jid of [...new Set([contact.id, contact.phoneNumber].filter(Boolean))]) {
+      const existing = contactMapFor(accountId).get(jid) || {};
+      const stored = {
+        jid,
+        name: contactName(contact) || existing.name || null,
+        photoUrl: contact.imgUrl && contact.imgUrl !== "changed" ? contact.imgUrl : existing.photoUrl || null
+      };
+      contactMapFor(accountId).set(jid, stored);
+      storedContacts.push(stored);
+    }
+  }
+  if (!database) return;
+  for (let index = 0; index < storedContacts.length; index += 100) {
+    const batch = storedContacts.slice(index, index + 100);
+    const placeholders = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const values = batch.flatMap((contact) => [accountId, contact.jid, contact.name, contact.photoUrl, new Date()]);
+    await database.execute(
+      `INSERT INTO wa_contacts (account_id, jid, display_name, photo_url, updated_at)
+       VALUES ${placeholders}
+       ON DUPLICATE KEY UPDATE display_name = COALESCE(VALUES(display_name), display_name), photo_url = COALESCE(VALUES(photo_url), photo_url), updated_at = VALUES(updated_at)`,
+      values
+    );
+  }
+}
+
+async function persistContact(accountId, contact) {
+  await persistContacts(accountId, [contact]);
+}
+
+async function loadContacts(accountId) {
+  const contacts = contactMapFor(accountId);
+  if (!database || loadedContactAccounts.has(accountId)) return contacts;
+  const [rows] = await database.execute(
+    "SELECT jid, display_name AS name, photo_url AS photoUrl FROM wa_contacts WHERE account_id = ?",
+    [accountId]
+  );
+  rows.forEach((contact) => {
+    if (!contacts.has(contact.jid)) contacts.set(contact.jid, contact);
+  });
+  loadedContactAccounts.add(accountId);
+  return contacts;
 }
 
 function publicAccount(account) {
@@ -280,6 +348,50 @@ async function findMessageLogs(accountId, filters) {
       && (!fromDate || timestamp >= fromDate)
       && (!toDate || timestamp <= toDate);
   }).slice(-requestedLimit);
+}
+
+function messageContact(message) {
+  const value = message.jid || message.from || message.to || "desconocido";
+  return value.includes("@") ? value : `${value}@s.whatsapp.net`;
+}
+
+async function buildInbox(accountId, filters) {
+  const messages = await readMessageLogs(accountId, 500);
+  const contacts = await loadContacts(accountId);
+  const query = String(filters.query || "").trim().toLocaleLowerCase();
+  const direction = ["inbound", "outbound"].includes(filters.direction) ? filters.direction : null;
+  const requestedContact = String(filters.contact || "");
+  const conversations = new Map();
+
+  for (const message of messages) {
+    const jid = messageContact(message);
+    const contact = contacts.get(jid) || {};
+    const name = message.contactName || contact.name || jid.split("@")[0];
+    const searchable = `${name} ${jid} ${message.text || ""}`.toLocaleLowerCase();
+    if (query && !searchable.includes(query)) continue;
+    if (direction && message.direction !== direction) continue;
+    const summary = conversations.get(jid) || { jid, name, photoUrl: contact.photoUrl || null, lastMessage: "", timestamp: message.timestamp, count: 0 };
+    summary.name = message.contactName || contact.name || summary.name;
+    summary.lastMessage = message.text || "";
+    summary.timestamp = message.timestamp;
+    summary.count += 1;
+    conversations.set(jid, summary);
+  }
+
+  const sortedConversations = [...conversations.values()].sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp));
+  const connection = connections.get(accountId);
+  await Promise.all(sortedConversations.slice(0, 30).map(async (conversation) => {
+    if (conversation.photoUrl || !connection?.socket) return;
+    try {
+      conversation.photoUrl = await connection.socket.profilePictureUrl(conversation.jid, "preview", 3000) || null;
+      if (conversation.photoUrl) await persistContact(accountId, { id: conversation.jid, name: conversation.name, imgUrl: conversation.photoUrl });
+    } catch {}
+  }));
+
+  const selectedMessages = requestedContact
+    ? messages.filter((message) => messageContact(message) === requestedContact && (!direction || message.direction === direction) && (!query || `${message.contactName || ""} ${message.text || ""}`.toLocaleLowerCase().includes(query)))
+    : [];
+  return { conversations: sortedConversations, messages: selectedMessages };
 }
 
 function extractMessageText(message) {
@@ -405,15 +517,28 @@ async function connectAccount(account) {
         .then(() => persistSessionFiles(account.id))
         .catch((error) => console.error(`No se pudo guardar la sesion de ${account.id}:`, error.message));
     });
+    socket.ev.on("contacts.upsert", (contacts) => {
+      void persistContacts(account.id, contacts).catch((error) => console.error(`No se pudieron guardar contactos de ${account.id}:`, error.message));
+    });
+    socket.ev.on("contacts.update", (contacts) => {
+      void persistContacts(account.id, contacts).catch((error) => console.error(`No se pudieron actualizar contactos de ${account.id}:`, error.message));
+    });
+    socket.ev.on("messaging-history.set", ({ contacts }) => {
+      void persistContacts(account.id, contacts).catch((error) => console.error(`No se pudieron importar contactos de ${account.id}:`, error.message));
+    });
     socket.ev.on("messages.upsert", ({ type, messages }) => {
       if (connection.cancelled || !accounts.some((item) => item.id === account.id)) return;
       if (type !== "notify") return;
       for (const message of messages) {
         if (!message.message || message.key.fromMe) continue;
+        const jid = message.key.remoteJid || "desconocido";
+        if (message.pushName) void persistContact(account.id, { id: jid, notify: message.pushName });
         void appendMessageLog(account.id, {
           id: message.key.id,
           direction: "inbound",
-          from: message.key.remoteJid?.replace("@s.whatsapp.net", "") || "desconocido",
+          jid,
+          from: jid.replace("@s.whatsapp.net", ""),
+          contactName: message.pushName || null,
           text: extractMessageText(message.message)
         }).catch((error) => console.error(`No se pudo registrar un mensaje de ${account.id}:`, error.message));
       }
@@ -477,7 +602,7 @@ function serveStatic(requestUrl, response) {
 
 const server = http.createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
-  const accountMatch = requestUrl.pathname.match(/^\/api\/accounts\/([\w-]+)(?:\/(qr|messages|api-key-access|log-access|logs|pairing-code))?$/);
+  const accountMatch = requestUrl.pathname.match(/^\/api\/accounts\/([\w-]+)(?:\/(qr|messages|api-key-access|log-access|logs|inbox|pairing-code))?$/);
 
   try {
     if (request.method === "GET" && requestUrl.pathname === "/api/accounts") {
@@ -520,7 +645,8 @@ const server = http.createServer(async (request, response) => {
           return;
         }
         const message = await connection.socket.sendMessage(recipient, { text });
-        await appendMessageLog(account.id, { id: message.key.id, direction: "outbound", to: recipient.replace("@s.whatsapp.net", ""), text });
+        const contact = (await loadContacts(account.id)).get(recipient);
+        await appendMessageLog(account.id, { id: message.key.id, direction: "outbound", jid: recipient, to: recipient.replace("@s.whatsapp.net", ""), contactName: contact?.name || null, text });
         sendJson(response, 201, { id: message.key.id, status: "enviado", accountId: account.id });
         return;
       }
@@ -619,6 +745,16 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
+      if (request.method === "GET" && action === "inbox") {
+        const accessToken = request.headers["x-log-access-token"];
+        if (!hasLogAccess(account.id, accessToken)) {
+          sendJson(response, 403, { error: "Verifica esta cuenta antes de abrir sus conversaciones." });
+          return;
+        }
+        sendJson(response, 200, await buildInbox(account.id, Object.fromEntries(requestUrl.searchParams)));
+        return;
+      }
+
       if (request.method === "POST" && action === "messages") {
         const body = await readBody(request);
         const recipient = normalizePhone(body.to);
@@ -632,7 +768,8 @@ const server = http.createServer(async (request, response) => {
           return;
         }
         const message = await connection.socket.sendMessage(recipient, { text });
-        await appendMessageLog(account.id, { id: message.key.id, direction: "outbound", to: recipient.replace("@s.whatsapp.net", ""), text });
+        const contact = (await loadContacts(account.id)).get(recipient);
+        await appendMessageLog(account.id, { id: message.key.id, direction: "outbound", jid: recipient, to: recipient.replace("@s.whatsapp.net", ""), contactName: contact?.name || null, text });
         sendJson(response, 201, { id: message.key.id, status: "enviado" });
         return;
       }
@@ -641,6 +778,8 @@ const server = http.createServer(async (request, response) => {
         if (connection) connection.cancelled = true;
         connection?.socket?.end(undefined);
         connections.delete(accountId);
+        contactCache.delete(accountId);
+        loadedContactAccounts.delete(accountId);
         accounts = accounts.filter((item) => item.id !== accountId);
         if (database) {
           await database.execute("DELETE FROM wa_accounts WHERE id = ?", [accountId]);
