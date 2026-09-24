@@ -43,7 +43,7 @@ function renderAccounts() {
       <div class="account-meta">
         <span class="account-status ${statusClass}">${account.status}</span>
         <span class="account-actions">
-          <button class="text-button" data-action="link" data-id="${account.id}" type="button">${account.hasQr ? "Ver QR" : "Vincular"}</button>
+          ${account.status === "conectada" ? "" : `<button class="text-button" data-action="link" data-id="${account.id}" type="button">Vincular</button>`}
           <button class="text-button" data-action="api-key" data-id="${account.id}" type="button">API key</button>
           <button class="text-button" data-action="logs" data-id="${account.id}" type="button">Registro</button>
           <button class="text-button delete" data-action="delete" data-id="${account.id}" type="button">Eliminar</button>
@@ -191,9 +191,7 @@ accountsElement.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   if (button.dataset.action === "link") {
-    const account = accounts.find((item) => item.id === button.dataset.id);
-    if (account?.hasQr) openQr(button.dataset.id);
-    else openLinkDialog(button.dataset.id);
+    openLinkDialog(button.dataset.id);
   }
   if (button.dataset.action === "api-key" && confirm("Esto invalidara la API key anterior. Continuar?")) {
     try { const { apiKey } = await request(`/api/accounts/${button.dataset.id}/api-key`, { method: "POST" }); showApiKey(button.dataset.id, apiKey); await loadAccounts(); } catch (error) { showToast(error.message); }
