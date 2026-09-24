@@ -9,6 +9,10 @@ const toast = document.querySelector("#toast");
 let accounts = [];
 let qrInterval;
 
+function refreshIcons() {
+  window.lucide?.createIcons();
+}
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
@@ -45,12 +49,18 @@ function renderAccounts() {
   }
 
   const connected = accounts.filter((account) => account.status === "conectada");
+  const needsAttention = accounts.filter((account) => account.status !== "conectada").length;
+  document.querySelector("#account-count").textContent = accounts.length;
+  document.querySelector("#online-count").textContent = connected.length;
+  document.querySelector("#attention-count").textContent = needsAttention;
+  document.querySelector("#sidebar-account-count").textContent = accounts.length;
   sender.innerHTML = '<option value="">Selecciona una cuenta conectada</option>';
   connected.forEach((account) => {
     const option = new Option(`${account.name}${account.phone ? ` - ${account.phone}` : ""}`, account.id);
     sender.add(option);
   });
   sender.disabled = connected.length === 0;
+  refreshIcons();
 }
 
 async function loadAccounts() {
@@ -84,7 +94,14 @@ async function openQr(accountId) {
   qrInterval = setInterval(updateQr, 3000);
 }
 
-document.querySelector("#add-account-button").addEventListener("click", () => accountDialog.showModal());
+function showAccountDialog() {
+  accountDialog.showModal();
+  document.querySelector("#account-name").focus();
+}
+
+document.querySelectorAll("#add-account-button, #add-account-button-secondary, #empty-add-account").forEach((button) => {
+  button.addEventListener("click", showAccountDialog);
+});
 document.querySelector("#cancel-account").addEventListener("click", () => accountDialog.close());
 document.querySelector("#close-qr").addEventListener("click", () => qrDialog.close());
 qrDialog.addEventListener("close", () => clearInterval(qrInterval));
@@ -124,3 +141,4 @@ messageForm.addEventListener("submit", async (event) => {
 
 loadAccounts();
 setInterval(loadAccounts, 10000);
+refreshIcons();

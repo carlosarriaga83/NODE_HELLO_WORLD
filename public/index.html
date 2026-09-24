@@ -5,73 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Panel de operaciones para cuentas de WhatsApp.">
     <title>WA Control</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=3">
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <a class="brand" href="/" aria-label="WA Control">
-          <span class="brand-mark">W</span>
-          <span>WA Control</span>
-        </a>
-        <nav aria-label="Navegacion principal">
-          <a class="nav-link active" href="#cuentas">Cuentas</a>
-          <a class="nav-link" href="#mensajes">Mensajes</a>
+        <a class="brand" href="#resumen" aria-label="WA Control"><span class="brand-mark"><i data-lucide="message-circle"></i></span><span>wa<span class="brand-dot">.</span>control</span></a>
+        <div class="workspace-switcher" title="Espacio de trabajo actual"><span class="workspace-avatar">WC</span><span><strong>Operaciones</strong><small>Espacio principal</small></span><i data-lucide="chevrons-up-down"></i></div>
+        <nav class="side-nav" aria-label="Navegacion principal">
+          <p class="nav-label">MENU</p>
+          <a class="side-link active" href="#resumen"><i data-lucide="layout-dashboard"></i><span>Resumen</span></a>
+          <a class="side-link" href="#cuentas"><i data-lucide="contact-round"></i><span>Cuentas</span><b id="sidebar-account-count">0</b></a>
+          <a class="side-link" href="#mensajes"><i data-lucide="send"></i><span>Nuevo mensaje</span></a>
         </nav>
-        <p class="sidebar-foot">Multi-account console<br><span>v1.0</span></p>
+        <div class="sidebar-guide"><span class="guide-icon"><i data-lucide="lightbulb"></i></span><strong>Primera cuenta</strong><p>Crea una cuenta y escanea el QR desde WhatsApp.</p><a href="#cuentas">Ver guia <i data-lucide="arrow-up-right"></i></a></div>
+        <p class="sidebar-foot"><span></span> Servicio operativo</p>
       </aside>
-
-      <main>
-        <header class="topbar">
-          <div>
-            <p class="kicker">OPERACIONES</p>
-            <h1>WhatsApp, bajo control.</h1>
-          </div>
-          <div class="server-state"><span></span> API activa</div>
-        </header>
-
-        <section id="cuentas" class="section-head">
-          <div>
-            <h2>Cuentas conectadas</h2>
-            <p>Vincula y administra cada linea desde un solo lugar.</p>
-          </div>
-          <button class="button primary" id="add-account-button" type="button">Nueva cuenta</button>
-        </section>
-
-        <section class="account-grid" id="accounts" aria-live="polite">
-          <div class="empty-state" id="empty-state">
-            <strong>Aun no hay cuentas.</strong>
-            <p>Agrega una cuenta para vincular WhatsApp mediante codigo QR.</p>
-          </div>
-        </section>
-
-        <section id="mensajes" class="composer">
-          <div class="composer-heading">
-            <p class="kicker">ENVIO DIRECTO</p>
-            <h2>Nuevo mensaje</h2>
-          </div>
-          <form id="message-form">
-            <label>
-              Cuenta emisora
-              <select id="sender" required disabled>
-                <option value="">Selecciona una cuenta conectada</option>
-              </select>
-            </label>
-            <label>
-              Destinatario
-              <input id="recipient" inputmode="tel" placeholder="5215512345678" required>
-            </label>
-            <label class="message-field">
-              Mensaje
-              <textarea id="message" rows="4" placeholder="Escribe tu mensaje aqui" required></textarea>
-            </label>
-            <div class="form-footer">
-              <p>Usa el numero internacional, solo digitos.</p>
-              <button class="button primary" id="send-button" type="submit">Enviar mensaje</button>
-            </div>
-          </form>
-        </section>
-      </main>
+      <div class="content-frame">
+        <header class="topbar"><div class="topbar-context"><span>Panel de control</span><i data-lucide="chevron-right"></i><strong>Resumen</strong></div><div class="topbar-actions"><span class="server-state"><i></i> API activa</span><button class="icon-button top-icon" type="button" title="Las cuentas se actualizan automaticamente"><i data-lucide="circle-help"></i></button><span class="user-avatar" title="Administrador">CA</span></div></header>
+        <nav class="section-nav" aria-label="Secciones del panel"><a class="section-link active" href="#resumen">Vista general</a><a class="section-link" href="#cuentas">Cuentas</a><a class="section-link" href="#mensajes">Mensajes</a></nav>
+        <main>
+          <section id="resumen" class="hero"><div><p class="eyebrow"><span></span> OPERACIONES DE WHATSAPP</p><h1>Un solo lugar para<br>todas tus cuentas.</h1><p class="hero-copy">Conecta lineas, consulta su estado y envia mensajes directos sin cambiar de herramienta.</p></div><button class="button primary hero-action" id="add-account-button" type="button"><i data-lucide="plus"></i> Vincular cuenta</button></section>
+          <section class="metrics" aria-label="Estado de las cuentas">
+            <article class="metric-card"><span class="metric-icon violet"><i data-lucide="contact-round"></i></span><div><p>Cuentas registradas</p><strong id="account-count">0</strong><small>En este espacio</small></div></article>
+            <article class="metric-card"><span class="metric-icon lime"><i data-lucide="wifi"></i></span><div><p>Conectadas ahora</p><strong id="online-count">0</strong><small>Listas para enviar</small></div></article>
+            <article class="metric-card"><span class="metric-icon amber"><i data-lucide="scan-line"></i></span><div><p>Requieren accion</p><strong id="attention-count">0</strong><small>QR pendiente o sin sesion</small></div></article>
+          </section>
+          <section id="cuentas" class="panel accounts-panel"><div class="panel-heading"><div><p class="eyebrow"><span></span> TUS CONEXIONES</p><h2>Cuentas de WhatsApp</h2><p class="panel-copy">Cada cuenta tiene su propia sesion y puede administrarse por separado.</p></div><button class="button secondary" id="add-account-button-secondary" type="button"><i data-lucide="plus"></i> Nueva cuenta</button></div><div class="account-grid" id="accounts" aria-live="polite"><div class="empty-state" id="empty-state"><span class="empty-icon"><i data-lucide="qr-code"></i></span><div><strong>Conecta tu primera cuenta</strong><p>Asigna un nombre, abre WhatsApp en tu telefono y escanea el codigo QR.</p><button class="text-action" id="empty-add-account" type="button">Vincular una cuenta <i data-lucide="arrow-right"></i></button></div></div></div></section>
+          <section id="mensajes" class="message-layout"><aside class="message-help"><span class="message-help-icon"><i data-lucide="send-horizontal"></i></span><p class="eyebrow"><span></span> ENVIO DIRECTO</p><h2>Envio uno a uno,<br>sin friccion.</h2><p>Elige una cuenta conectada y escribe el numero en formato internacional.</p><div class="hint"><i data-lucide="info"></i><span>No agregues el simbolo <b>+</b>, espacios ni guiones.</span></div></aside><section class="panel composer"><div class="panel-heading compact"><div><h2>Nuevo mensaje</h2><p class="panel-copy">Los envios se realizan desde la cuenta que selecciones.</p></div></div><form id="message-form"><label>Cuenta emisora<select id="sender" required disabled><option value="">Selecciona una cuenta conectada</option></select></label><label>Destinatario<input id="recipient" inputmode="tel" placeholder="5215512345678" required></label><label class="message-field">Mensaje<textarea id="message" rows="5" placeholder="Escribe tu mensaje aqui" required></textarea></label><div class="form-footer"><span><i data-lucide="shield-check"></i> Envio desde una sesion vinculada</span><button class="button primary" id="send-button" type="submit"><i data-lucide="send"></i> Enviar mensaje</button></div></form></section></section>
+        </main>
+      </div>
     </div>
 
     <dialog id="account-dialog">
@@ -81,12 +47,10 @@
             <p class="kicker">NUEVA CONEXION</p>
             <h2>Agrega una cuenta</h2>
           </div>
-          <button class="icon-button" value="cancel" aria-label="Cerrar">x</button>
+          <button class="icon-button" value="cancel" aria-label="Cerrar"><i data-lucide="x"></i></button>
         </div>
-        <label>
-          Nombre interno
-          <input id="account-name" maxlength="48" placeholder="Ventas Mexico" required autofocus>
-        </label>
+        <p class="dialog-hint"><i data-lucide="info"></i> Usa un nombre reconocible. Solo aparecera dentro de este panel.</p>
+        <label>Nombre interno<input id="account-name" maxlength="48" placeholder="Ej. Ventas Mexico" required autofocus></label>
         <div class="dialog-actions">
           <button class="button ghost" value="cancel" type="button" id="cancel-account">Cancelar</button>
           <button class="button primary" value="default" type="submit">Crear y vincular</button>
@@ -100,15 +64,16 @@
           <p class="kicker">VINCULACION</p>
           <h2 id="qr-title">Escanea el QR</h2>
         </div>
-        <button class="icon-button" type="button" id="close-qr" aria-label="Cerrar">x</button>
+        <button class="icon-button" type="button" id="close-qr" aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
       <div class="qr-content">
         <div class="qr-frame" id="qr-frame"><span>Preparando QR...</span></div>
-        <p id="qr-status">Abre WhatsApp en tu telefono y vincula un dispositivo.</p>
+        <p id="qr-status">En WhatsApp, abre Dispositivos vinculados y escanea este codigo.</p>
       </div>
     </dialog>
 
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js"></script>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>
