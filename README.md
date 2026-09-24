@@ -26,7 +26,7 @@ npm run dev
 4. En WhatsApp, abre **Dispositivos vinculados** y escanea el QR mostrado por el panel.
 5. Una vez conectada, selecciona la cuenta en **Nuevo mensaje**, indica el numero internacional con solo digitos y escribe el mensaje.
 
-Las sesiones se guardan en `data/sessions/` y los nombres de las cuentas en `data/accounts.json`. Ambos estan excluidos de Git mediante `.gitignore`; no elimines esa carpeta en el servidor si quieres conservar las conexiones vinculadas.
+Las sesiones de Baileys se guardan en `data/sessions/` y siguen excluidas de Git; no elimines esa carpeta en el servidor si quieres conservar las conexiones vinculadas. En Hostinger, las cuentas, sus hashes de API key y los registros cifrados se conservan en MySQL. En desarrollo, si no defines variables de MySQL, la aplicacion usa `data/accounts.json` y `data/logs/` como respaldo local.
 
 ## API del dashboard
 
@@ -65,7 +65,7 @@ print(response.json())
 
 ## Registro cifrado
 
-Los mensajes entrantes y salientes se guardan por cuenta en archivos cifrados con AES-256-GCM. El dashboard no permite verlos directamente: usa **Registro** en la tarjeta de la cuenta, solicita un codigo y recibelo en esa misma cuenta de WhatsApp. El codigo dura 10 minutos; el token de lectura generado dura 15 minutos.
+Los mensajes entrantes y salientes se guardan por cuenta con AES-256-GCM, en MySQL cuando la aplicacion se ejecuta con la configuracion de Hostinger. El dashboard no permite verlos directamente: usa **Registro** en la tarjeta de la cuenta, solicita un codigo y recibelo en esa misma cuenta de WhatsApp. El codigo dura 10 minutos; el token de lectura generado dura 15 minutos.
 
 Para consumir mensajes desde una integracion, primero desbloquea el registro en el dashboard y envia el token temporal junto con la API key:
 
@@ -102,4 +102,6 @@ Crea antes un repositorio vacio en GitHub y sustituye la URL del ejemplo por la 
 4. Ejecuta el build. Hostinger instalara las dependencias declaradas en `package.json` y arrancara la aplicacion.
 5. Protege la URL con el mecanismo de acceso restringido que uses en tu hosting antes de vincular cuentas de WhatsApp.
 
-El servidor usa la variable de entorno `PORT` asignada por Hostinger. En local usa el puerto `3000` de forma predeterminada. Para una clave de cifrado controlada por el servidor, configura `LOG_ENCRYPTION_KEY` con una cadena base64 de 32 bytes. Si no existe, la aplicacion crea una clave local en `data/log-encryption.key`, tambien excluida de Git.
+El servidor usa la variable de entorno `PORT` asignada por Hostinger. En local usa el puerto `3000` de forma predeterminada. Para persistencia administrada, configura `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`; Hostinger puede crearlas de forma segura al configurar la base. La aplicacion crea las tablas `wa_accounts` y `wa_message_logs` al arrancar y, si la base esta vacia, importa las cuentas y registros locales existentes una sola vez.
+
+Para una clave de cifrado controlada por el servidor, configura `LOG_ENCRYPTION_KEY` con una cadena base64 de 32 bytes. Si no existe, el servidor reutiliza la clave local existente; en una instalacion MySQL nueva deriva una clave estable desde el secreto de base de datos para que los registros sigan siendo legibles entre despliegues. No incluyas ninguna de estas variables en Git.

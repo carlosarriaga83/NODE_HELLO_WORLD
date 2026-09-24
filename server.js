@@ -5,6 +5,7 @@ const { createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, ra
 const makeWASocket = require("@whiskeysockets/baileys").default;
 const { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
 const QRCode = require("qrcode");
+const mysql = require("mysql2/promise");
 
 const port = Number.parseInt(process.env.PORT, 10) || 3000;
 const publicDirectory = path.join(__dirname, "public");
@@ -15,6 +16,18 @@ const accountsFile = path.join(dataDirectory, "accounts.json");
 const connections = new Map();
 const logAccessChallenges = new Map();
 const logAccessTokens = new Map();
+const databaseEnabled = Boolean(process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER && process.env.DB_PASSWORD);
+const database = databaseEnabled
+  ? mysql.createPool({
+      host: process.env.DB_HOST === "localhost" ? "127.0.0.1" : process.env.DB_HOST,
+      port: Number.parseInt(process.env.DB_PORT, 10) || 3306,
+      database: process.env.DB_NAME,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      waitForConnections: true,
+      connectionLimit: 5
+    })
+  : null;
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -40,6 +53,9 @@ function loadEncryptionKey() {
   try {
     return Buffer.from(fs.readFileSync(keyFile, "utf8"), "base64");
   } catch {
+    if (databaseEnabled) {
+      return createHash("sha256").update(process.env.DB_PASSWORD).digest();
+    }
     const key = randomBytes(32);
     fs.writeFileSync(keyFile, key.toString("base64"), { mode: 0o600 });
     return key;
@@ -60,6 +76,68 @@ let accounts = loadAccounts();
 
 function saveAccounts() {
   fs.writeFileSync(accountsFile, JSON.stringify(accounts, null, 2));
+}
+
+async function initializeStorage() {
+  if (!database) return;
+
+  await database.query(`
+    CREATE TABLE IF NOT EXISTS wa_accounts (
+      id CHAR(36) PRIMARY KEY,
+      name VARCHAR(48) NOT NULL,
+      api_key_hash CHAR(64) NOT NULL,
+      api_key_prefix VARCHAR(16) NOT NULL,
+      created_at DATETIME(3) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+  await database.query(`
+    CREATE TABLE IF NOT EXISTS wa_message_logs (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      account_id CHAR(36) NOT NULL,
+      encrypted_entry LONGTEXT NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      INDEX wa_message_logs_account_created (account_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  const [existing] = await database.query("SELECT COUNT(*) AS count FROM wa_accounts");
+  if (Number(existing[0].count) === 0 && accounts.length > 0) {
+    for (const account of accounts) {
+      await database.execute(
+        "INSERT INTO wa_accounts (id, name, api_key_hash, api_key_prefix, created_at) VALUES (?, ?, ?, ?, ?)",
+        [account.id, account.name, account.apiKeyHash, account.apiKeyPrefix, new Date(account.createdAt)]
+      );
+      try {
+        const entries = fs.readFileSync(logFileFor(account.id), "utf8").trim().split("\n").filter(Boolean);
+        for (const entry of entries) {
+          await database.execute(
+            "INSERT INTO wa_message_logs (account_id, encrypted_entry, created_at) VALUES (?, ?, ?)",
+            [account.id, entry, new Date()]
+          );
+        }
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    }
+  }
+
+  const [storedAccounts] = await database.query(
+    "SELECT id, name, api_key_hash AS apiKeyHash, api_key_prefix AS apiKeyPrefix, created_at AS createdAt FROM wa_accounts ORDER BY created_at"
+  );
+  accounts = storedAccounts.map((account) => ({ ...account, createdAt: new Date(account.createdAt).toISOString() }));
+}
+
+async function persistAccount(account) {
+  if (!database) {
+    saveAccounts();
+    return;
+  }
+  await database.execute(
+    `INSERT INTO wa_accounts (id, name, api_key_hash, api_key_prefix, created_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), api_key_hash = VALUES(api_key_hash), api_key_prefix = VALUES(api_key_prefix)`,
+    [account.id, account.name, account.apiKeyHash, account.apiKeyPrefix, new Date(account.createdAt)]
+  );
 }
 
 function publicAccount(account) {
@@ -102,11 +180,26 @@ function logFileFor(accountId) {
   return path.join(logsDirectory, `${accountId}.jsonl`);
 }
 
-function appendMessageLog(accountId, entry) {
-  fs.appendFileSync(logFileFor(accountId), `${encryptLogEntry({ ...entry, timestamp: new Date().toISOString() })}\n`, { mode: 0o600 });
+async function appendMessageLog(accountId, entry) {
+  const encryptedEntry = encryptLogEntry({ ...entry, timestamp: new Date().toISOString() });
+  if (!database) {
+    fs.appendFileSync(logFileFor(accountId), `${encryptedEntry}\n`, { mode: 0o600 });
+    return;
+  }
+  await database.execute(
+    "INSERT INTO wa_message_logs (account_id, encrypted_entry, created_at) VALUES (?, ?, ?)",
+    [accountId, encryptedEntry, new Date()]
+  );
 }
 
-function readMessageLogs(accountId, limit = 100) {
+async function readMessageLogs(accountId, limit = 100) {
+  if (database) {
+    const [rows] = await database.execute(
+      "SELECT encrypted_entry FROM wa_message_logs WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+      [accountId, limit]
+    );
+    return rows.reverse().map((row) => decryptLogEntry(row.encrypted_entry));
+  }
   try {
     return fs.readFileSync(logFileFor(accountId), "utf8").trim().split("\n").filter(Boolean).map(decryptLogEntry).slice(-limit);
   } catch (error) {
@@ -199,12 +292,12 @@ async function connectAccount(account) {
       if (type !== "notify") return;
       for (const message of messages) {
         if (!message.message || message.key.fromMe) continue;
-        appendMessageLog(account.id, {
+        void appendMessageLog(account.id, {
           id: message.key.id,
           direction: "inbound",
           from: message.key.remoteJid?.replace("@s.whatsapp.net", "") || "desconocido",
           text: extractMessageText(message.message)
-        });
+        }).catch((error) => console.error(`No se pudo registrar un mensaje de ${account.id}:`, error.message));
       }
     });
     socket.ev.on("connection.update", async ({ connection: stateName, lastDisconnect, qr }) => {
@@ -281,7 +374,7 @@ const server = http.createServer(async (request, response) => {
       const apiKey = createApiKey();
       const account = { id: randomUUID(), name, apiKeyHash: apiKey.apiKeyHash, apiKeyPrefix: apiKey.apiKeyPrefix, createdAt: new Date().toISOString() };
       accounts.push(account);
-      saveAccounts();
+      await persistAccount(account);
       connectAccount(account);
       sendJson(response, 201, { account: publicAccount(account), apiKey: apiKey.apiKey });
       return;
@@ -307,7 +400,7 @@ const server = http.createServer(async (request, response) => {
           return;
         }
         const message = await connection.socket.sendMessage(recipient, { text });
-        appendMessageLog(account.id, { id: message.key.id, direction: "outbound", to: recipient.replace("@s.whatsapp.net", ""), text });
+        await appendMessageLog(account.id, { id: message.key.id, direction: "outbound", to: recipient.replace("@s.whatsapp.net", ""), text });
         sendJson(response, 201, { id: message.key.id, status: "enviado", accountId: account.id });
         return;
       }
@@ -318,7 +411,7 @@ const server = http.createServer(async (request, response) => {
           return;
         }
         const limit = Math.min(Math.max(Number.parseInt(requestUrl.searchParams.get("limit"), 10) || 50, 1), 100);
-        sendJson(response, 200, { accountId: account.id, messages: readMessageLogs(account.id, limit) });
+        sendJson(response, 200, { accountId: account.id, messages: await readMessageLogs(account.id, limit) });
         return;
       }
     }
@@ -341,7 +434,7 @@ const server = http.createServer(async (request, response) => {
         const apiKey = createApiKey();
         account.apiKeyHash = apiKey.apiKeyHash;
         account.apiKeyPrefix = apiKey.apiKeyPrefix;
-        saveAccounts();
+        await persistAccount(account);
         sendJson(response, 201, { apiKey: apiKey.apiKey, apiKeyPrefix: apiKey.apiKeyPrefix });
         return;
       }
@@ -383,7 +476,7 @@ const server = http.createServer(async (request, response) => {
           sendJson(response, 403, { error: "Desbloquea el registro con el codigo enviado a WhatsApp." });
           return;
         }
-        sendJson(response, 200, { messages: readMessageLogs(account.id) });
+        sendJson(response, 200, { messages: await readMessageLogs(account.id) });
         return;
       }
 
@@ -400,7 +493,7 @@ const server = http.createServer(async (request, response) => {
           return;
         }
         const message = await connection.socket.sendMessage(recipient, { text });
-        appendMessageLog(account.id, { id: message.key.id, direction: "outbound", to: recipient.replace("@s.whatsapp.net", ""), text });
+        await appendMessageLog(account.id, { id: message.key.id, direction: "outbound", to: recipient.replace("@s.whatsapp.net", ""), text });
         sendJson(response, 201, { id: message.key.id, status: "enviado" });
         return;
       }
@@ -410,7 +503,12 @@ const server = http.createServer(async (request, response) => {
         connection?.socket?.end(undefined);
         connections.delete(accountId);
         accounts = accounts.filter((item) => item.id !== accountId);
-        saveAccounts();
+        if (database) {
+          await database.execute("DELETE FROM wa_accounts WHERE id = ?", [accountId]);
+          await database.execute("DELETE FROM wa_message_logs WHERE account_id = ?", [accountId]);
+        } else {
+          saveAccounts();
+        }
         fs.rmSync(path.join(sessionsDirectory, accountId), { recursive: true, force: true });
         fs.rmSync(logFileFor(accountId), { force: true });
         sendJson(response, 200, { deleted: true });
@@ -424,7 +522,15 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
-server.listen(port, "0.0.0.0", () => {
-  console.log(`Dashboard disponible en http://localhost:${port}`);
-  accounts.forEach((account) => connectAccount(account));
+async function startServer() {
+  await initializeStorage();
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Dashboard disponible en http://localhost:${port}${database ? " con MySQL" : " con almacenamiento local"}`);
+    accounts.forEach((account) => connectAccount(account));
+  });
+}
+
+startServer().catch((error) => {
+  console.error("No se pudo inicializar el almacenamiento:", error.message);
+  process.exit(1);
 });
